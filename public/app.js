@@ -1,11 +1,26 @@
 /**
- * Memory With a Receipt — Frontend Web App
- * Interactive Q&A, 3-Column Focused Evidence Graph, and Deletion Verification
+ * Memory with a Receipt — Evidence Desk Frontend
+ * Editorial interface: warm paper palette, serif typography, and provenance graph
  */
 
 let cy = null;
+let currentCitations = [];
 
-// Initialize Cytoscape container with refined neutral styles and coral accent
+/**
+ * Maps raw database event types to readable human product terms.
+ */
+function formatReadableEventType(rawType) {
+  if (!rawType) return 'Note';
+  const t = rawType.toLowerCase();
+  if (t === 'status_claim') return 'Update';
+  if (t === 'decision') return 'Decision';
+  if (t === 'commitment') return 'Commitment';
+  if (t === 'issue') return 'Issue';
+  if (t === 'reversal') return 'Reversal';
+  return t.charAt(0).toUpperCase() + t.slice(1).replace(/_/g, ' ');
+}
+
+// Initialize Cytoscape container with warm editorial palette and oxblood accent
 function initCytoscape() {
   if (typeof cytoscape === 'undefined') {
     console.error('Cytoscape library not loaded.');
@@ -17,65 +32,65 @@ function initCytoscape() {
     boxSelectionEnabled: false,
     autounselectify: false,
     style: [
-      // Base Node Style
+      // Base Node Style (Graphite & Warm Paper)
       {
         selector: 'node',
         style: {
           'font-family': 'Inter, sans-serif',
           'font-size': '10px',
-          'color': '#cbd5e1',
+          'color': '#22211F',
           'text-valign': 'center',
           'text-halign': 'center',
           'text-wrap': 'wrap',
           'text-max-width': '125px',
           'border-width': 1.5,
-          'border-color': '#334155',
-          'background-color': '#111827',
-          'transition-property': 'opacity, background-color, line-color, target-arrow-color, border-color, width, height, shadow-opacity',
-          'transition-duration': '0.2s',
+          'border-color': '#8A8275',
+          'background-color': '#DCD5C9',
+          'transition-property': 'opacity, background-color, line-color, target-arrow-color, border-color, width, height',
+          'transition-duration': '0.15s',
         },
       },
-      // 1. Decision Event Nodes (Rounded Rectangle, Charcoal fill, Slate outline)
+      // 1. Decision Event Nodes (Rounded Rectangle)
       {
         selector: 'node[nodeType = "event"]',
         style: {
           'shape': 'round-rectangle',
           'width': '135px',
-          'height': '50px',
-          'background-color': '#141d2b',
-          'border-color': '#475569',
+          'height': '46px',
+          'background-color': '#E4DED3',
+          'border-color': '#7A7265',
           'border-width': 1.5,
           'label': 'data(shortLabel)',
           'font-size': '10px',
-          'font-weight': 600,
-          'color': '#f1f5f9',
+          'font-weight': 500,
+          'color': '#22211F',
           'text-valign': 'center',
           'text-halign': 'center',
           'text-max-width': '115px',
         },
       },
-      // 2. Source Document Nodes (Circle/Ellipse, Muted Charcoal, Label hidden by default)
+      // 2. Source Document Nodes (Circle/Ellipse)
       {
         selector: 'node[nodeType = "document"]',
         style: {
           'shape': 'ellipse',
-          'width': '38px',
-          'height': '38px',
-          'background-color': '#0f172a',
-          'border-color': '#334155',
+          'width': '32px',
+          'height': '32px',
+          'background-color': '#D5CEC2',
+          'border-color': '#8A8275',
           'border-width': 1.5,
           'label': '', // hidden by default to prevent clutter
         },
       },
-      // 3. Person / Actor Nodes (Diamond, Muted Charcoal, Label hidden by default)
+      // 3. Person / Actor Nodes (Diamond)
       {
         selector: 'node[nodeType = "person"]',
         style: {
           'shape': 'diamond',
-          'width': '38px',
-          'height': '38px',
-          'background-color': '#0f172a',
-          'border-color': '#334155',
+          'width': '32px',
+          'height': '32px',
+          'background-color': '#D5CEC2',
+          'border-color': '#8A8275',
           'border-width': 1.5,
           'label': '', // hidden by default to prevent clutter
         },
@@ -84,36 +99,33 @@ function initCytoscape() {
       {
         selector: 'node.hovered, node:hover',
         style: {
-          'border-color': '#94a3b8',
-          'border-width': 2,
+          'border-color': '#4A463F',
+          'border-width': 1.5,
           'label': 'data(label)',
           'text-valign': 'top',
           'text-margin-y': '-6px',
-          'text-background-opacity': 0.95,
-          'text-background-color': '#090d16',
+          'text-background-opacity': 0.96,
+          'text-background-color': '#F4F1EA',
           'text-background-padding': '3px',
           'text-background-shape': 'roundrectangle',
-          'color': '#f8fafc',
+          'color': '#22211F',
           'font-size': '10px',
           'z-index': 99,
         },
       },
-      // Highlighted State for Nodes (Selected evidence path in muted pastel coral/red)
+      // Highlighted State for Nodes (Selected evidence path in oxblood red)
       {
         selector: 'node.highlighted',
         style: {
-          'border-color': '#f87171',
-          'border-width': 2.5,
-          'background-color': '#201518',
-          'shadow-blur': 12,
-          'shadow-color': '#f87171',
-          'shadow-opacity': 0.65,
-          'color': '#ffffff',
+          'border-color': '#A8453C',
+          'border-width': 2,
+          'background-color': '#F8EFEF',
+          'color': '#22211F',
           'label': 'data(label)',
           'text-valign': 'top',
           'text-margin-y': '-6px',
-          'text-background-opacity': 0.95,
-          'text-background-color': '#090d16',
+          'text-background-opacity': 0.96,
+          'text-background-color': '#FAF8F5',
           'text-background-padding': '3px',
           'text-background-shape': 'roundrectangle',
           'font-size': '10px',
@@ -136,39 +148,39 @@ function initCytoscape() {
           'opacity': 0.18,
         },
       },
-      // Base Edge Style (Soft Dark Gray)
+      // Base Edge Style (Soft Graphite Gray)
       {
         selector: 'edge',
         style: {
-          'width': 1.5,
-          'line-color': '#334155',
-          'target-arrow-color': '#334155',
+          'width': 1.2,
+          'line-color': '#9E9689',
+          'target-arrow-color': '#9E9689',
           'target-arrow-shape': 'triangle',
-          'arrow-scale': 0.8,
+          'arrow-scale': 0.75,
           'curve-style': 'bezier',
-          'opacity': 0.65,
+          'opacity': 0.7,
           'label': '',
           'transition-property': 'opacity, line-color, target-arrow-color, width',
-          'transition-duration': '0.2s',
+          'transition-duration': '0.15s',
         },
       },
-      // Highlighted Edge (Muted pastel coral/red with truthful label)
+      // Highlighted Edge (Restrained oxblood red)
       {
         selector: 'edge.highlighted',
         style: {
-          'line-color': '#f87171',
-          'target-arrow-color': '#f87171',
+          'line-color': '#A8453C',
+          'target-arrow-color': '#A8453C',
           'target-arrow-shape': 'triangle',
-          'arrow-scale': 0.9,
-          'width': 2.5,
+          'arrow-scale': 0.85,
+          'width': 2,
           'opacity': 1,
           'z-index': 90,
           'label': 'data(label)',
           'font-size': '9px',
           'font-family': 'JetBrains Mono, monospace',
-          'color': '#fca5a5',
-          'text-background-opacity': 0.95,
-          'text-background-color': '#090d16',
+          'color': '#7D2E26',
+          'text-background-opacity': 0.96,
+          'text-background-color': '#FAF8F5',
           'text-background-padding': '2px',
           'text-background-shape': 'roundrectangle',
           'text-rotation': 'autorotate',
@@ -209,6 +221,10 @@ function initCytoscape() {
       document.querySelectorAll('.receipt-card').forEach((card) => {
         card.classList.toggle('active-receipt', rids.includes(card.dataset.receiptId));
       });
+
+      if (rids.length > 0) {
+        updateArchivalCaption(rids[0]);
+      }
     }
   });
 
@@ -233,7 +249,6 @@ function initCytoscape() {
  * - Column 1 (Left): Source documents
  * - Column 2 (Middle): Decision events
  * - Column 3 (Right): People / Actors
- * Optimizes vertical ordering to minimize edge crossings.
  */
 function applyThreeColumnEvidenceLayout(cyInstance) {
   if (!cyInstance) return;
@@ -281,18 +296,18 @@ function applyThreeColumnEvidenceLayout(cyInstance) {
   });
 
   // Column X Coordinates
-  const X_DOC = 80;
-  const X_EVENT = 320;
-  const X_PERSON = 560;
+  const X_DOC = 75;
+  const X_EVENT = 310;
+  const X_PERSON = 540;
 
   // Vertical steps and centering
-  const Y_EVENT_STEP = 75;
+  const Y_EVENT_STEP = 72;
   const numEvents = Math.max(1, sortedEvents.length);
   const numDocs = Math.max(1, sortedDocs.length);
   const numPersons = Math.max(1, sortedPersons.length);
 
-  const Y_DOC_STEP = Math.max(60, (numEvents * Y_EVENT_STEP) / numDocs);
-  const Y_PERSON_STEP = Math.max(60, (numEvents * Y_EVENT_STEP) / numPersons);
+  const Y_DOC_STEP = Math.max(56, (numEvents * Y_EVENT_STEP) / numDocs);
+  const Y_PERSON_STEP = Math.max(56, (numEvents * Y_EVENT_STEP) / numPersons);
 
   const totalEventHeight = (sortedEvents.length - 1) * Y_EVENT_STEP;
   const totalDocHeight = (sortedDocs.length - 1) * Y_DOC_STEP;
@@ -333,9 +348,9 @@ function applyThreeColumnEvidenceLayout(cyInstance) {
     name: 'preset',
     positions: (node) => posMap[node.id()] || { x: X_EVENT, y: 50 },
     animate: true,
-    animationDuration: 350,
+    animationDuration: 300,
     fit: true,
-    padding: 35,
+    padding: 30,
   });
 
   layout.run();
@@ -354,28 +369,54 @@ function renderGraph(graphData) {
 
   if (rawNodes.length === 0) {
     emptyState.classList.remove('hidden');
-    nodeCountBadge.textContent = '0 nodes';
+    nodeCountBadge.textContent = '0 items';
     cy.elements().remove();
     return;
   }
 
   emptyState.classList.add('hidden');
-  nodeCountBadge.textContent = `${rawNodes.length} nodes • ${edges.length} edges`;
+  nodeCountBadge.textContent = `${rawNodes.length} items • ${edges.length} connections`;
 
-  // Prepare shortLabel for event nodes to reduce label clutter
+  // Clean labels for human presentation (no raw uppercase tags or emoji prefixes)
   const nodes = rawNodes.map((node) => {
-    if (node.data && node.data.nodeType === 'event') {
+    if (!node.data) return node;
+
+    if (node.data.nodeType === 'event') {
       const topic = node.data.topic || '';
-      const type = (node.data.eventType || 'DECISION').toUpperCase();
-      const truncatedTopic = topic.length > 22 ? topic.slice(0, 20) + '…' : topic;
+      const readableType = formatReadableEventType(node.data.eventType);
+      const truncatedTopic = topic.length > 24 ? topic.slice(0, 22) + '…' : topic;
       return {
         ...node,
         data: {
           ...node.data,
-          shortLabel: `[${type}]\n${truncatedTopic}`,
+          shortLabel: `${readableType}\n${truncatedTopic}`,
+          label: `${readableType}: ${topic}`,
         },
       };
     }
+
+    if (node.data.nodeType === 'document') {
+      const filename = node.data.path ? node.data.path.split('/').pop() : 'Document';
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          label: filename,
+        },
+      };
+    }
+
+    if (node.data.nodeType === 'person') {
+      const personName = node.data.name || 'Person';
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          label: personName,
+        },
+      };
+    }
+
     return node;
   });
 
@@ -384,6 +425,22 @@ function renderGraph(graphData) {
 
   // Apply three-column evidence layout
   applyThreeColumnEvidenceLayout(cy);
+}
+
+// Update the archival annotation quote strip at the bottom of the evidence map
+function updateArchivalCaption(receiptId) {
+  const strip = document.getElementById('graph-caption-strip');
+  const captionText = document.getElementById('graph-caption-text');
+  if (!strip || !captionText) return;
+
+  const cit = currentCitations.find((c) => c.receiptId === receiptId);
+  if (cit && cit.exactQuote) {
+    const loc = cit.sourceLocation ? ` — ${cit.sourceLocation}` : '';
+    captionText.textContent = `“${cit.exactQuote}”${loc}`;
+    strip.classList.remove('hidden');
+  } else {
+    strip.classList.add('hidden');
+  }
 }
 
 // Highlight corresponding receipt card on node click
@@ -395,6 +452,7 @@ function highlightReceiptCard(nodeId) {
       card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   });
+  updateArchivalCaption(nodeId);
 }
 
 // Highlight connected evidence path for given receipt IDs
@@ -435,6 +493,11 @@ function highlightEvidencePath(targetIds) {
     const isMatch = idArray.includes(card.dataset.receiptId);
     card.classList.toggle('active-receipt', isMatch);
   });
+
+  // Update archival caption
+  if (idArray.length > 0) {
+    updateArchivalCaption(idArray[0]);
+  }
 }
 
 // Reset graph and list highlights to quiet default state
@@ -447,6 +510,8 @@ function resetHighlight() {
   document.querySelectorAll('.claim-item').forEach((item) => {
     item.classList.remove('active-claim');
   });
+  const strip = document.getElementById('graph-caption-strip');
+  if (strip) strip.classList.add('hidden');
 }
 
 // Execute question query
@@ -478,22 +543,24 @@ async function handleAskQuestion(question) {
 
     const body = await res.json();
     if (!body.ok) {
-      throw new Error(body.error || 'Failed to synthesize answer.');
+      throw new Error(body.error || 'Failed to generate answer.');
     }
 
     const data = body.data;
+    currentCitations = Array.isArray(data.citations) ? data.citations : [];
 
-    // 1. Status Pill
-    statusPill.className = `status-pill ${data.status}`;
+    // 1. Status Indicator (Human sentence case)
+    statusPill.className = `status-indicator ${data.status}`;
     if (data.status === 'answered') {
-      statusPill.textContent = '✅ ANSWERED (HIGH CONFIDENCE)';
+      statusPill.textContent = 'Supported answer';
     } else if (data.status === 'conflicting_evidence') {
-      statusPill.textContent = '⚠️ CONFLICTING EVIDENCE';
+      statusPill.textContent = 'Conflicting evidence';
     } else {
-      statusPill.textContent = '❓ INSUFFICIENT EVIDENCE';
+      statusPill.textContent = 'Insufficient evidence';
     }
 
-    citationBadge.textContent = `${data.citations ? data.citations.length : 0} Verified Receipts`;
+    const citCount = currentCitations.length;
+    citationBadge.textContent = citCount === 1 ? '1 source' : `${citCount} sources`;
 
     // 2. Answer Text
     answerText.textContent = data.answer || 'No answer generated.';
@@ -506,32 +573,36 @@ async function handleAskQuestion(question) {
       reasoningBox.classList.add('hidden');
     }
 
-    // 4. Atomic Claims
+    // 4. Claims (Numbered source notes)
     claimsList.innerHTML = '';
     const claims = Array.isArray(data.claims) ? data.claims : [];
     if (claims.length === 0) {
-      claimsList.innerHTML = '<div class="empty-hint">No verified atomic claims generated.</div>';
+      claimsList.innerHTML = '<div class="empty-hint">No specific claims verified.</div>';
     } else {
       claims.forEach((claim, idx) => {
         const item = document.createElement('div');
         item.className = 'claim-item';
 
+        let currencyLabel = 'Current';
         const curr = (claim.currency || 'uncertain').toLowerCase();
+        if (curr === 'historical') currencyLabel = 'Earlier';
+        else if (curr === 'uncertain') currencyLabel = 'Uncertain';
+
         const rids = claim.receipt_ids || [];
-        const ridsDisplay = rids.map((r) => `[${r}]`).join(' ');
+        const ridsDisplay = rids.join(', ');
 
         let quoteBlock = '';
         if (claim.evidence_quote) {
-          quoteBlock = `<div class="claim-quote-box">Quote: "${escapeHtml(claim.evidence_quote)}"</div>`;
+          quoteBlock = `<blockquote class="claim-quote">“${escapeHtml(claim.evidence_quote)}”</blockquote>`;
         }
 
         item.innerHTML = `
           <div class="claim-header">
-            <span class="currency-tag ${curr}">${curr.toUpperCase()}</span>
+            <span class="currency-tag ${curr}">${currencyLabel}</span>
             <span class="claim-text">${idx + 1}. ${escapeHtml(claim.text)}</span>
           </div>
-          <div class="claim-receipt-ref">Supported by receipt: ${escapeHtml(ridsDisplay)}</div>
           ${quoteBlock}
+          <div class="claim-receipt-ref">Based on: ${escapeHtml(ridsDisplay || 'retrieved evidence')}</div>
         `;
 
         // Click claim to highlight all its supported receipts in graph and cards
@@ -548,27 +619,40 @@ async function handleAskQuestion(question) {
       });
     }
 
-    // 5. Verified Receipts List
+    // 5. Sources List (Editorial Source Notes)
     receiptsList.innerHTML = '';
-    const citations = Array.isArray(data.citations) ? data.citations : [];
-    if (citations.length === 0) {
-      receiptsList.innerHTML = '<div class="empty-hint">No physical receipts cited.</div>';
+    if (currentCitations.length === 0) {
+      receiptsList.innerHTML = '<div class="empty-hint">No sources cited.</div>';
     } else {
-      citations.forEach((cit) => {
+      currentCitations.forEach((cit) => {
         const card = document.createElement('div');
         card.className = 'receipt-card';
         card.dataset.receiptId = cit.receiptId;
 
-        const actor = cit.actorName ? ` • 👤 ${escapeHtml(cit.actorName)}` : '';
-        const date = cit.eventDate ? ` • 📅 ${escapeHtml(cit.eventDate)}` : '';
+        const readableType = formatReadableEventType(cit.eventType);
+        const titleText = cit.topic ? `${readableType}: ${cit.topic}` : readableType;
+
+        const attributionParts = [];
+        if (cit.actorName) attributionParts.push(cit.actorName);
+        if (cit.eventDate) attributionParts.push(cit.eventDate);
+        const attributionMeta = attributionParts.length > 0
+          ? `<div class="receipt-meta">${escapeHtml(attributionParts.join(' · '))}</div>`
+          : '';
 
         card.innerHTML = `
           <div class="receipt-header">
-            <span class="receipt-id">[${cit.citationNumber}] ${escapeHtml(cit.receiptId)}</span>
-            <span class="receipt-location">📍 ${escapeHtml(cit.sourceLocation)}</span>
+            <span class="receipt-location">${escapeHtml(cit.sourceLocation)}</span>
           </div>
-          <div class="receipt-topic">[${(cit.eventType || '').toUpperCase()}] ${escapeHtml(cit.topic || '')}${actor}${date}</div>
-          <div class="receipt-quote">"${escapeHtml(cit.exactQuote || '')}"</div>
+          <div class="receipt-topic">${escapeHtml(titleText)}</div>
+          <blockquote class="receipt-quote">“${escapeHtml(cit.exactQuote || '')}”</blockquote>
+          ${attributionMeta}
+          <details class="technical-details">
+            <summary>Technical details</summary>
+            <div class="tech-content">
+              <span>ID: <code>${escapeHtml(cit.receiptId)}</code></span>
+              <span>Type: <code>${escapeHtml(cit.eventType || 'unknown')}</code></span>
+            </div>
+          </details>
         `;
 
         // Hover & click highlight connected evidence path
@@ -618,20 +702,16 @@ async function handleDeletionPreview() {
     const p = body.data;
     previewBox.classList.remove('hidden');
     previewBox.innerHTML = `
-      <div style="font-weight: 600; color: #fca5a5; margin-bottom: 8px;">
-        ⚠️ Deletion Impact Preview for "${escapeHtml(p.targetName)}"
-      </div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-family: monospace; font-size: 12px; color: #cbd5e1;">
+      <div class="deletion-heading">Deletion impact preview for "${escapeHtml(p.targetName)}"</div>
+      <div class="deletion-grid">
         <div>• Chunks to delete: ${p.affectedChunksCount}</div>
-        <div>• FTS index rows: ${p.affectedChunksCount}</div>
+        <div>• Search index rows: ${p.affectedChunksCount}</div>
         <div>• Decision events: ${p.affectedEventsCount}</div>
         <div>• Graph relations: ${p.affectedRelationsCount}</div>
         <div>• Vector embeddings: ${p.affectedEmbeddingsCount}</div>
         <div>• Extraction records: ${p.affectedExtractionsCount}</div>
       </div>
-      <div style="margin-top: 8px; font-size: 12px; color: #94a3b8;">
-        Affected Documents: ${p.affectedDocuments.join(', ') || 'None'}
-      </div>
+      <div class="deletion-foot">Affected documents: ${escapeHtml(p.affectedDocuments.join(', ') || 'None')}</div>
     `;
   } catch (err) {
     alert(`Error: ${err.message}`);
@@ -650,7 +730,7 @@ async function handleDeletionConfirm() {
   }
 
   const confirmed = window.confirm(
-    `Are you sure you want to permanently purge all data for "${personName}" from all derived stores?\n\nThis will remove all linked chunks, FTS rows, embeddings, events, and create an immutable deletion tombstone.`
+    `Are you sure you want to permanently purge all data for "${personName}" from all derived stores?\n\nThis will remove all linked chunks, search index rows, embeddings, events, and create an immutable deletion tombstone.`
   );
 
   if (!confirmed) return;
@@ -670,19 +750,17 @@ async function handleDeletionConfirm() {
 
     reportBox.classList.remove('hidden');
     reportBox.innerHTML = `
-      <div style="font-weight: 700; color: #34d399; margin-bottom: 8px;">
-        ✅ Permanent Deletion Completed & Verified
+      <div class="deletion-success-heading">Permanent deletion completed and verified</div>
+      <div class="deletion-report-list">
+        <div>• Purged chunks: <b>${d.deletedChunksCount}</b></div>
+        <div>• Purged events: <b>${d.deletedEventsCount}</b></div>
+        <div>• Purged embeddings: <b>${d.deletedEmbeddingsCount}</b></div>
+        <div>• Durable tombstone: <b>Active (immunizes against future ingestion)</b></div>
+        <div>• Remaining in derived stores: <b>0 (zero trace)</b></div>
+        <div>• System cache status: <b>${escapeHtml(v.cache)}</b></div>
       </div>
-      <div style="font-size: 12px; color: #e2e8f0; line-height: 1.6;">
-        <div>• Purged Chunks: <b>${d.deletedChunksCount}</b></div>
-        <div>• Purged Events: <b>${d.deletedEventsCount}</b></div>
-        <div>• Purged Embeddings: <b>${d.deletedEmbeddingsCount}</b></div>
-        <div>• Durable Tombstone: <b>Active (Immunizes against future ingestion)</b></div>
-        <div>• Remaining in Chunks/FTS/Events/Embeddings: <b>0 (Verified Zero Trace)</b></div>
-        <div>• System Cache Status: <b>${escapeHtml(v.cache)}</b></div>
-      </div>
-      <div style="margin-top: 10px; padding: 6px 10px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 4px; color: #34d399; font-size: 12px; font-weight: 600;">
-        🔒 No retrievable derived data remains in the system.
+      <div class="deletion-notice">
+        No retrievable derived data remains in the system.
       </div>
     `;
   } catch (err) {
@@ -713,7 +791,7 @@ document.addEventListener('DOMContentLoaded', () => {
     handleAskQuestion(questionInput.value);
   });
 
-  // Example Chips
+  // Example text links
   document.querySelectorAll('.chip-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const q = btn.dataset.query;
@@ -723,7 +801,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Graph toolbar buttons
   document.getElementById('btn-fit-graph')?.addEventListener('click', () => {
-    if (cy) cy.fit(undefined, 35);
+    if (cy) cy.fit(undefined, 30);
   });
   document.getElementById('btn-reset-zoom')?.addEventListener('click', () => {
     if (cy) {

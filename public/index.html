@@ -3,58 +3,56 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Memory With a Receipt — Evidence-First Decision Memory</title>
+  <title>Memory with a Receipt — Evidence-First Decision Memory</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <script src="/vendor/cytoscape.min.js"></script>
 </head>
 <body>
-  <div class="app-container">
-    <!-- Header -->
-    <header class="app-header">
+  <div class="desk-container">
+    <!-- Editorial Header -->
+    <header class="desk-header">
       <div class="header-brand">
-        <div class="header-logo-icon">🧾</div>
-        <div>
-          <h1 class="header-title">Memory With a Receipt</h1>
-          <p class="header-subtitle">Evidence-first enterprise decision memory & audit system</p>
-        </div>
+        <h1 class="header-title">Memory with a Receipt</h1>
+        <p class="header-subtitle">A decision record with sources.</p>
       </div>
-      <div class="header-badges">
-        <span class="trust-badge">
-          <span class="badge-dot"></span>
-          Every claim has a receipt
-        </span>
-        <span class="sqlite-badge">794 Chunks &bull; SQLite Grounded</span>
+      <div class="header-meta">
+        <span class="meta-tag">Evidence-backed answers</span>
+        <span class="meta-sep">·</span>
+        <span class="meta-tag">794 indexed excerpts</span>
       </div>
     </header>
 
-    <!-- Main Workspace Grid -->
-    <main class="workspace-grid">
-      <!-- Left Column: Focused Evidence Graph -->
-      <section class="graph-panel">
+    <!-- Main Workspace Grid (Two-Column Evidence Desk) -->
+    <main class="desk-workspace">
+      <!-- Left Column: Evidence map -->
+      <section class="desk-map-panel">
         <div class="panel-header">
           <div class="panel-title-wrap">
-            <h2 class="panel-title">Focused Evidence Graph</h2>
-            <span class="panel-hint" id="graph-node-count">0 nodes</span>
+            <h2 class="desk-section-title">Evidence map</h2>
+            <span class="panel-hint" id="graph-node-count">0 items</span>
           </div>
           <div class="graph-controls">
-            <button id="btn-fit-graph" class="btn-icon" title="Fit to screen">⛶ Fit</button>
-            <button id="btn-reset-zoom" class="btn-icon" title="Reset zoom">🔍 100%</button>
+            <button id="btn-fit-graph" class="btn-desk-text" title="Fit map to screen">Fit</button>
+            <button id="btn-reset-zoom" class="btn-desk-text" title="Reset map zoom">100%</button>
           </div>
         </div>
 
         <div id="cy-container" class="cy-wrapper">
           <div id="cy"></div>
           <div id="graph-empty-state" class="graph-empty-state">
-            <div class="empty-icon">🕸️</div>
-            <div class="empty-title">Evidence Graph Idle</div>
-            <p class="empty-desc">Ask a question to render the focused causal network of decision events, source documents, and actors.</p>
+            <p class="empty-title">Evidence map is idle.</p>
+            <p class="empty-desc">Ask a question to chart the connected sources, decision events, and people.</p>
+          </div>
+          <!-- Archival quote annotation strip on active node selection -->
+          <div id="graph-caption-strip" class="graph-caption-strip hidden">
+            <span id="graph-caption-text" class="graph-caption-text"></span>
           </div>
         </div>
 
-        <!-- Graph Legend -->
+        <!-- Quiet Graph Legend -->
         <div class="graph-legend">
           <div class="legend-group">
             <span class="legend-label">Nodes:</span>
@@ -69,85 +67,84 @@
         </div>
       </section>
 
-      <!-- Right Column: Query & Grounded Answer -->
-      <section class="qa-panel">
-        <!-- Question Input Card -->
-        <div class="query-card">
+      <!-- Right Column: Document Desk -->
+      <section class="desk-document-panel">
+        <!-- Question Area (Single editorial search line) -->
+        <div class="query-section">
           <form id="qa-form" class="query-form">
-            <div class="input-wrapper">
+            <div class="search-line-wrap">
               <input
                 type="text"
                 id="question-input"
                 class="query-input"
-                placeholder="Ask about project decisions, cutovers, field mappings, or commitments..."
+                placeholder="Ask about the record…"
                 autocomplete="off"
                 required
               />
               <button type="submit" id="btn-ask" class="btn-ask">
-                <span class="btn-text">Ask Memory</span>
+                <span class="btn-text">Ask</span>
                 <span class="spinner hidden" id="ask-spinner"></span>
               </button>
             </div>
           </form>
 
-          <!-- Example Question Chips -->
-          <div class="example-chips">
-            <span class="chips-label">Try example:</span>
-            <button class="chip-btn" data-query="What is the current decision on bakery scope?">
-              🍰 Bakery scope decision
+          <!-- Text Link Examples -->
+          <div class="example-links">
+            <span class="examples-label">Examples:</span>
+            <button type="button" class="example-link chip-btn" data-query="What is the current decision on bakery scope?">
+              Bakery scope
             </button>
-            <button class="chip-btn" data-query="What changed about the fresh cutover?">
-              🔄 Fresh cutover changes
+            <span class="link-sep">·</span>
+            <button type="button" class="example-link chip-btn" data-query="What changed about the fresh cutover?">
+              Fresh cutover
             </button>
-            <button class="chip-btn" data-query="What commitments remain unresolved?">
-              ⚠️ Unresolved commitments
+            <span class="link-sep">·</span>
+            <button type="button" class="example-link chip-btn" data-query="What commitments remain unresolved?">
+              Unresolved commitments
             </button>
           </div>
         </div>
 
-        <!-- Dynamic Answer Container -->
+        <!-- Answer & Evidence Document -->
         <div id="answer-container" class="answer-container hidden">
-          <!-- Status Banner & Answer Synthesis -->
-          <div class="answer-card">
-            <div class="answer-header">
-              <span id="status-pill" class="status-pill">ANSWERED</span>
-              <span id="citation-count-badge" class="meta-badge">0 Receipts</span>
+          <!-- Answer Section -->
+          <div class="answer-section">
+            <div class="answer-status-bar">
+              <span id="status-pill" class="status-indicator">Supported answer</span>
+              <span id="citation-count-badge" class="source-count">0 sources</span>
             </div>
 
-            <div class="answer-body">
-              <h3 class="answer-label">Grounded Synthesis</h3>
-              <p id="grounded-answer-text" class="grounded-answer"></p>
-            </div>
+            <h3 class="desk-subhead">Answer</h3>
+            <p id="grounded-answer-text" class="grounded-answer"></p>
 
-            <div id="reasoning-note-box" class="reasoning-box hidden">
-              <span class="reasoning-icon">⚠️</span>
-              <span id="reasoning-note-text" class="reasoning-text"></span>
+            <div id="reasoning-note-box" class="reasoning-note hidden">
+              <span id="reasoning-note-text"></span>
             </div>
           </div>
 
-          <!-- Verified Atomic Claims Section -->
-          <div class="section-card">
-            <h3 class="section-title">Verified Atomic Claims</h3>
+          <!-- What the evidence says (Numbered source notes) -->
+          <div class="evidence-notes-section">
+            <h3 class="desk-subhead">What the evidence says</h3>
             <div id="claims-list" class="claims-list"></div>
           </div>
 
-          <!-- Physical Receipts Section -->
-          <div class="section-card">
-            <h3 class="section-title">Verified Receipts (Physical Source Coordinates)</h3>
+          <!-- Sources -->
+          <div class="sources-section">
+            <h3 class="desk-subhead">Sources</h3>
             <div id="receipts-list" class="receipts-list"></div>
           </div>
         </div>
 
-        <!-- Privacy & Deletion Proof Section -->
+        <!-- Right to be forgotten (Auditable Deletion Drawer) -->
         <details class="deletion-panel" id="deletion-panel">
           <summary class="deletion-summary">
-            <span class="deletion-summary-title">🔒 Right to be Forgotten / Deletion Proof</span>
-            <span class="deletion-badge">GDPR / Audit Ready</span>
+            <span class="deletion-summary-title">Right to be forgotten</span>
+            <span class="deletion-meta-tag">Audit proof</span>
           </summary>
 
           <div class="deletion-content">
             <p class="deletion-intro">
-              Verify true, durable removal of a person across all system-derived stores (chunks, FTS5 index, vector embeddings, decision events, graph relations, and extraction records). Raw files in <code>corpus/</code> remain immutable on disk, but deleted entities are permanently purged from memory and immunized against resurrection.
+              Verify complete, durable removal of a person across all system-derived stores (chunks, search index, vector embeddings, decision events, graph relations, and extraction records). Raw files in <code>corpus/</code> remain immutable on disk, while deleted entities are permanently purged from active memory and immunized against resurrection.
             </p>
 
             <div class="deletion-controls">
@@ -156,13 +153,13 @@
                 id="deletion-person-input"
                 class="deletion-input"
                 value="Kwame Boateng"
-                placeholder="Enter full person name..."
+                placeholder="Enter full person name…"
               />
-              <button type="button" id="btn-preview-deletion" class="btn-secondary">
-                Preview Impact
+              <button type="button" id="btn-preview-deletion" class="btn-desk-secondary">
+                Preview impact
               </button>
-              <button type="button" id="btn-confirm-deletion" class="btn-danger">
-                Confirm Permanent Deletion
+              <button type="button" id="btn-confirm-deletion" class="btn-desk-danger">
+                Confirm permanent deletion
               </button>
             </div>
 
