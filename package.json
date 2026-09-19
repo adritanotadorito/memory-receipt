@@ -10,6 +10,8 @@
     "hybrid-search": "node src/hybrid-cli.js",
     "ledger-status": "node src/ledger-status-cli.js",
     "llm-health": "node --env-file=.env src/llm-health-cli.js",
+    "extract-events": "node --env-file=.env src/extract-events-cli.js",
+    "ask": "node --env-file=.env src/answer-cli.js",
     "test": "node --test tests/*.test.js"
   },
   "repository": {

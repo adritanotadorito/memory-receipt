@@ -104,6 +104,17 @@ export function initDatabase(dbPath = 'data/memory.db') {
     CREATE INDEX IF NOT EXISTS idx_event_relations_from_event_id ON event_relations(from_event_id);
     CREATE INDEX IF NOT EXISTS idx_event_relations_to_event_id ON event_relations(to_event_id);
 
+    -- Table to track LLM extraction status per chunk for idempotency and resumability
+    CREATE TABLE IF NOT EXISTS chunk_extractions (
+      chunk_id INT PRIMARY KEY REFERENCES chunks(id) ON DELETE CASCADE,
+      extractor_version TEXT NOT NULL,
+      model_name TEXT NOT NULL,
+      completed_at TEXT NOT NULL,
+      event_count INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_chunk_extractions_chunk_id ON chunk_extractions(chunk_id);
+
     -- FTS5 Full-Text Search Virtual Table for fast, ranked keyword retrieval
     CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
       chunk_id UNINDEXED,

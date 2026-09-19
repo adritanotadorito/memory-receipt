@@ -1,10 +1,9 @@
 /**
  * ============================================================================
- * VERDA vLLM INFERENCE CLIENT (PHASE 5A)
+ * OPENAI INFERENCE CLIENT (PHASE 5A)
  * ============================================================================
  *
- * Lightweight, zero-dependency client connecting to self-hosted vLLM OpenAI-compatible
- * inference endpoints.
+ * Lightweight, zero-dependency client connecting to OpenAI Chat Completions API.
  *
  * Safety & Grounding Principles:
  * 1. Secrets & Credentials:
@@ -12,15 +11,16 @@
  * 2. Timeout & Resource Guard:
  *    - Strict 60-second AbortController timeout prevents hanging requests.
  * 3. Validation:
- *    - Verifies base URL, API key, messages, HTTP status, and response structure.
+ *    - Verifies API key, messages, HTTP status, and response structure.
  * ============================================================================
  */
 
+export const OPENAI_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
 export const DEFAULT_TIMEOUT_MS = 60000;
-export const DEFAULT_FALLBACK_MODEL = 'Qwen/Qwen2.5-7B-Instruct';
+export const DEFAULT_FALLBACK_MODEL = 'gpt-4.1-mini';
 
 /**
- * Sends a chat completion request to the configured Verda vLLM endpoint.
+ * Sends a chat completion request to the OpenAI API.
  *
  * @param {Array<{ role: 'system' | 'user' | 'assistant', content: string }>} messages
  * @param {object} [options]
@@ -38,28 +38,23 @@ export const DEFAULT_FALLBACK_MODEL = 'Qwen/Qwen2.5-7B-Instruct';
  * }>}
  */
 export async function chatCompletion(messages, options = {}) {
-  const baseUrl = process.env.VERDA_BASE_URL?.trim();
-  const apiKey = process.env.VERDA_API_KEY?.trim();
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
 
   // 1. Validate configuration
-  if (!baseUrl) {
-    throw new Error('Missing required environment variable: VERDA_BASE_URL');
-  }
-
   if (!apiKey) {
-    throw new Error('Missing required environment variable: VERDA_API_KEY');
+    throw new Error('Missing required environment variable: OPENAI_API_KEY');
   }
 
   if (!Array.isArray(messages) || messages.length === 0) {
     throw new Error('messages must be a non-empty array of message objects');
   }
 
-  const model = options.model || process.env.VERDA_MODEL?.trim() || DEFAULT_FALLBACK_MODEL;
+  const model = options.model || process.env.OPENAI_MODEL?.trim() || DEFAULT_FALLBACK_MODEL;
   const timeoutMs = typeof options.timeoutMs === 'number' && options.timeoutMs > 0
     ? options.timeoutMs
     : DEFAULT_TIMEOUT_MS;
 
-  // 2. Build OpenAI-compatible request payload
+  // 2. Build OpenAI chat completions request payload
   const payload = {
     model,
     messages,
@@ -79,10 +74,7 @@ export async function chatCompletion(messages, options = {}) {
     payload.response_format = responseFormat;
   }
 
-  // 3. Prepare URL & Headers
-  const normalizedBaseUrl = baseUrl.replace(/\/+$/, '');
-  const endpoint = `${normalizedBaseUrl}/v1/chat/completions`;
-
+  // 3. Prepare Timeout & Request
   const controller = new AbortController();
   const timer = setTimeout(() => {
     controller.abort(new Error(`LLM request timed out after ${timeoutMs}ms`));
@@ -90,7 +82,7 @@ export async function chatCompletion(messages, options = {}) {
 
   let response;
   try {
-    response = await fetch(endpoint, {
+    response = await fetch(OPENAI_ENDPOINT, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -113,7 +105,6 @@ export async function chatCompletion(messages, options = {}) {
     let errorDetails = '';
     try {
       const errorBody = await response.text();
-      // Try to parse JSON error message if provided by vLLM / OpenAI API
       try {
         const parsed = JSON.parse(errorBody);
         errorDetails = parsed.error?.message || parsed.message || errorBody.slice(0, 200);
