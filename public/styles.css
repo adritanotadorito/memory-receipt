@@ -454,6 +454,128 @@ body {
   color: #5C410B;
 }
 
+/* Quiet Data Use Disclosure */
+.data-use-panel {
+  margin-top: 12px;
+  border-top: 1px dashed var(--border-hairline);
+  padding-top: 6px;
+}
+
+.data-use-summary {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: baseline;
+  list-style: none;
+}
+
+.data-use-summary::-webkit-details-marker {
+  display: none;
+}
+
+.data-use-summary:hover {
+  color: var(--text-secondary);
+}
+
+.data-use-summary-text {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+}
+
+.data-use-panel[open] .data-use-summary-text {
+  color: var(--text-secondary);
+}
+
+.data-use-content {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.data-use-line {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* Plain-text Editorial Metrics Section */
+.data-use-metrics-section {
+  margin: 6px 0 2px 0;
+  padding: 6px 0;
+  border-top: 1px dashed var(--border-hairline);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.data-use-metrics-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-ink);
+  margin-bottom: 1px;
+}
+
+.data-use-metrics-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.metric-row {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  display: flex;
+  gap: 6px;
+}
+
+.metric-label {
+  color: var(--text-muted);
+  min-width: 44px;
+}
+
+.metric-val {
+  color: var(--text-ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.metric-row-note {
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  margin-top: 1px;
+}
+
+.data-use-metrics-fallback {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 2px 0;
+}
+
+.prototype-boundary-box {
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-hairline);
+  font-size: 11.5px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.prototype-boundary-label {
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-right: 4px;
+}
+
 /* Numbered Claims (Evidence Notes) */
 .evidence-notes-section {
   padding-bottom: 14px;

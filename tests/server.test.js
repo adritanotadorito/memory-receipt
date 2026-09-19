@@ -134,6 +134,15 @@ test('2. POST /api/ask returns grounded answer, receipts, and focused Cytoscape 
 
     const docNode = data.graph.nodes.find((n) => n.data.nodeType === 'document');
     assert.ok(docNode);
+
+    // Verify Data Use metrics in POST /api/ask response
+    assert.ok(data.metrics, 'data.metrics must be returned');
+    assert.ok(Number.isFinite(data.metrics.retrievedChunkCount), 'retrievedChunkCount must be finite number');
+    assert.ok(Number.isFinite(data.metrics.includedChunkCount), 'includedChunkCount must be finite number');
+    assert.ok(Number.isFinite(data.metrics.evidenceCharCount), 'evidenceCharCount must be finite number');
+    assert.ok(Number.isFinite(data.metrics.promptTokens), 'promptTokens must be finite number');
+    assert.ok(Number.isFinite(data.metrics.completionTokens), 'completionTokens must be finite number');
+    assert.ok(Number.isFinite(data.metrics.totalTokens), 'totalTokens must be finite number');
   } finally {
     cleanupServerTestEnvironment(env);
   }

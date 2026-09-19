@@ -1,5 +1,6 @@
 import { hybridSearch } from './hybrid.js';
 import { chatCompletion } from './llm.js';
+import { logLlmUsage } from './usage.js';
 
 export const VALID_STATUSES = new Set(['answered', 'conflicting_evidence', 'insufficient_evidence']);
 export const VALID_CURRENCIES = new Set(['current', 'historical', 'uncertain']);
@@ -122,12 +123,16 @@ export function parseAnswerResponse(rawText) {
 
 /**
  * Answers a natural-language question grounded in retrieved chunks and verified decision ledger receipts.
+ * Enforces data-minimisation character boundaries and logs honest token expenditure metrics.
  *
  * @param {import('better-sqlite3').Database} db
  * @param {string} question
  * @param {Function} [llm=chatCompletion]
  * @param {object} [options]
- * @param {number} [options.limit=10] - Number of chunks to retrieve
+ * @param {number} [options.limit] - Max candidate chunks to retrieve locally (overrides MAX_RETRIEVED_CHUNKS)
+ * @param {number} [options.maxRetrievedChunks=8]
+ * @param {number} [options.maxEvidenceChars=12000]
+ * @param {number} [options.maxCompletionTokens=700]
  * @param {string} [options.model]
  * @returns {Promise<{
  *   status: 'answered' | 'conflicting_evidence' | 'insufficient_evidence',
@@ -161,7 +166,15 @@ export function parseAnswerResponse(rawText) {
  *   }>,
  *   events: Array<object>,
  *   receipts: Array<object>,
- *   retrieval: Array<object>
+ *   retrieval: Array<object>,
+ *   metrics: {
+ *     retrievedChunkCount: number,
+ *     includedChunkCount: number,
+ *     evidenceCharCount: number,
+ *     promptTokens: number,
+ *     completionTokens: number,
+ *     totalTokens: number
+ *   }
  * }>}
  */
 export async function answerQuestion(db, question, llm = chatCompletion, options = {}) {
@@ -169,10 +182,19 @@ export async function answerQuestion(db, question, llm = chatCompletion, options
     throw new Error('question must be a non-empty string');
   }
 
-  const limit = typeof options.limit === 'number' && options.limit > 0 ? options.limit : 10;
+  // 1. Configurable data-minimisation & token limits
+  const maxRetrievedChunks = Number(
+    options.limit ?? options.maxRetrievedChunks ?? process.env.MAX_RETRIEVED_CHUNKS ?? 8
+  );
+  const maxEvidenceChars = Number(
+    options.maxEvidenceChars ?? options.max_evidence_chars ?? process.env.MAX_EVIDENCE_CHARS ?? 12000
+  );
+  const maxCompletionTokens = Number(
+    options.max_tokens ?? options.maxTokens ?? options.maxCompletionTokens ?? process.env.MAX_COMPLETION_TOKENS ?? 700
+  );
 
-  // 1. Run hybrid search to retrieve candidate chunks
-  const rawHits = await hybridSearch(db, question.trim(), { limit: limit + 4 });
+  // 2. Run hybrid search to retrieve candidate chunks locally
+  const rawHits = await hybridSearch(db, question.trim(), { limit: maxRetrievedChunks + 4 });
 
   // Filter out any excluded specification files
   const filteredHits = rawHits.filter((h) => {
@@ -184,9 +206,11 @@ export async function answerQuestion(db, question, llm = chatCompletion, options
       !relPath.includes('00_README.md') &&
       !relPath.includes('PRACTICE-QUESTIONS.md')
     );
-  }).slice(0, limit);
+  }).slice(0, maxRetrievedChunks);
 
-  if (filteredHits.length === 0) {
+  const retrievedChunkCount = filteredHits.length;
+
+  if (retrievedChunkCount === 0) {
     return {
       status: 'insufficient_evidence',
       answer: 'No relevant documents were found in the corpus to answer this question.',
@@ -196,50 +220,91 @@ export async function answerQuestion(db, question, llm = chatCompletion, options
       events: [],
       receipts: [],
       retrieval: [],
+      metrics: {
+        retrievedChunkCount: 0,
+        includedChunkCount: 0,
+        evidenceCharCount: 0,
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+      },
     };
   }
 
-  // 2. Fetch chunk line boundaries and linked decision events
-  const chunkIds = filteredHits.map((h) => h.chunkId);
-  const placeholders = chunkIds.map(() => '?').join(',');
+  // 3. Fetch candidate chunk details from SQLite
+  const candidateChunkIds = filteredHits.map((h) => h.chunkId);
+  const candidatePlaceholders = candidateChunkIds.map(() => '?').join(',');
 
   const chunkRows = db.prepare(`
     SELECT c.id, c.start_line, c.end_line, c.source_location, c.chunk_text, d.relative_path, d.category, d.filename
     FROM chunks c
     JOIN documents d ON c.document_id = d.id
-    WHERE c.id IN (${placeholders})
-  `).all(...chunkIds);
+    WHERE c.id IN (${candidatePlaceholders})
+  `).all(...candidateChunkIds);
 
   const chunkDetailMap = new Map(chunkRows.map((r) => [r.id, r]));
 
-  const eventRows = db.prepare(`
-    SELECT
-      de.id,
-      de.chunk_id,
-      de.event_type,
-      de.topic,
-      de.value,
-      de.actor_name,
-      de.actor_organization,
-      de.event_date,
-      de.exact_quote,
-      de.confidence,
-      de.verification_status,
-      de.created_at,
-      c.source_location,
-      c.start_line,
-      c.end_line,
-      d.relative_path,
-      d.category,
-      d.filename
-    FROM decision_events de
-    JOIN chunks c ON de.chunk_id = c.id
-    JOIN documents d ON c.document_id = d.id
-    WHERE de.chunk_id IN (${placeholders})
-    ORDER BY de.event_date ASC, de.id ASC
-  `).all(...chunkIds);
+  // 4. Evidence Packing Rule:
+  // - Add whole chunks in rank order while they fit within MAX_EVIDENCE_CHARS.
+  // - If the first chunk alone exceeds the limit, include that one whole chunk.
+  // - Never split or mutate chunk text (preserves literal citation integrity).
+  const includedHits = [];
+  let cumulativeChunkChars = 0;
 
-  // 3. Construct verified decision receipts collection from ledger events
+  for (let i = 0; i < filteredHits.length; i++) {
+    const hit = filteredHits[i];
+    const detail = chunkDetailMap.get(hit.chunkId) || {};
+    const chunkText = hit.exactSourceText || detail.chunk_text || '';
+    const textLength = chunkText.length;
+
+    if (includedHits.length === 0) {
+      // Always include the highest-ranked chunk
+      includedHits.push(hit);
+      cumulativeChunkChars += textLength;
+    } else if (cumulativeChunkChars + textLength <= maxEvidenceChars) {
+      includedHits.push(hit);
+      cumulativeChunkChars += textLength;
+    } else {
+      // Stop adding chunks to respect MAX_EVIDENCE_CHARS without breaking boundaries
+      break;
+    }
+  }
+
+  const includedChunkCount = includedHits.length;
+  const includedChunkIds = includedHits.map((h) => h.chunkId);
+  const includedPlaceholders = includedChunkIds.map(() => '?').join(',');
+
+  // 5. Fetch linked decision events for the included chunks only
+  const eventRows = includedChunkIds.length > 0
+    ? db.prepare(`
+        SELECT
+          de.id,
+          de.chunk_id,
+          de.event_type,
+          de.topic,
+          de.value,
+          de.actor_name,
+          de.actor_organization,
+          de.event_date,
+          de.exact_quote,
+          de.confidence,
+          de.verification_status,
+          de.created_at,
+          c.source_location,
+          c.start_line,
+          c.end_line,
+          d.relative_path,
+          d.category,
+          d.filename
+        FROM decision_events de
+        JOIN chunks c ON de.chunk_id = c.id
+        JOIN documents d ON c.document_id = d.id
+        WHERE de.chunk_id IN (${includedPlaceholders})
+        ORDER BY de.event_date ASC, de.id ASC
+      `).all(...includedChunkIds)
+    : [];
+
+  // 6. Construct verified decision receipts collection from ledger events
   const allReceipts = [];
   const receiptMap = new Map();
 
@@ -273,7 +338,7 @@ export async function answerQuestion(db, question, llm = chatCompletion, options
     receiptMap.set(`event_${ev.id}`, receipt);
   }
 
-  // Build the user prompt string containing the receipts and source chunks
+  // Build the formatted prompt source text
   let receiptsFormatted = '';
   if (allReceipts.length > 0) {
     receiptsFormatted = allReceipts.map((r) => {
@@ -289,7 +354,7 @@ Quote: "${r.exactQuote}"`;
     receiptsFormatted = 'No verified decision receipts were found for the retrieved chunks.';
   }
 
-  const chunksFormatted = filteredHits.map((hit) => {
+  const chunksFormatted = includedHits.map((hit) => {
     const detail = chunkDetailMap.get(hit.chunkId) || {};
     const loc = hit.sourceLocation || detail.source_location || 'unknown location';
     const cat = hit.category || detail.category || 'unknown';
@@ -299,6 +364,9 @@ Quote: "${r.exactQuote}"`;
 ${text}
 """`;
   }).join('\n\n---\n\n');
+
+  // Exact source-content character count supplied to the model
+  const evidenceCharCount = receiptsFormatted.length + chunksFormatted.length;
 
   const userPrompt = `Question: "${question.trim()}"
 
@@ -310,8 +378,12 @@ ${chunksFormatted}
 
 Analyze the verified decision receipts above and synthesize a strictly grounded, concise answer matching the requested JSON schema. Every claim MUST cite one or more valid Receipt IDs (e.g. ["event-123"]).`;
 
-  // 4. Request answer from LLM
+  // 7. Request answer from LLM with token bounding and usage logging
   let response;
+  let promptTokens = 0;
+  let completionTokens = 0;
+  let totalTokens = 0;
+
   try {
     response = await llm([
       { role: 'system', content: ANSWER_SYSTEM_PROMPT },
@@ -319,9 +391,41 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
     ], {
       temperature: 0,
       model: options.model,
+      max_tokens: maxCompletionTokens,
       response_format: ANSWER_RESPONSE_FORMAT,
     });
+
+    promptTokens = Number(response?.usage?.prompt_tokens || 0);
+    completionTokens = Number(response?.usage?.completion_tokens || 0);
+    totalTokens = Number(response?.usage?.total_tokens || (promptTokens + completionTokens));
   } catch (err) {
+    const errMsg = String(err.message || '').toLowerCase();
+    let errorCategory = 'unhandled';
+    if (errMsg.includes('timeout') || errMsg.includes('timed out') || errMsg.includes('aborted')) {
+      errorCategory = 'timeout';
+    } else if (errMsg.includes('status') || errMsg.includes('http') || errMsg.includes('401') || errMsg.includes('429') || errMsg.includes('500') || errMsg.includes('502') || errMsg.includes('503')) {
+      errorCategory = 'upstream_http';
+    } else if (errMsg.includes('network') || errMsg.includes('fetch') || errMsg.includes('econnrefused')) {
+      errorCategory = 'network';
+    } else if (errMsg.includes('json') || errMsg.includes('malformed') || errMsg.includes('invalid')) {
+      errorCategory = 'invalid_response';
+    }
+
+    try {
+      logLlmUsage(db, {
+        operation: 'answer',
+        model: options.model || process.env.OPENAI_MODEL || 'gpt-4.1-mini',
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 0,
+        retrieved_chunk_count: retrievedChunkCount,
+        included_chunk_count: includedChunkCount,
+        evidence_char_count: evidenceCharCount,
+        success: 0,
+        error_category: errorCategory,
+      });
+    } catch {}
+
     return {
       status: 'insufficient_evidence',
       answer: 'An error occurred during evidence synthesis.',
@@ -330,14 +434,37 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
       citations: [],
       events: eventRows,
       receipts: allReceipts,
-      retrieval: filteredHits,
+      retrieval: includedHits,
+      metrics: {
+        retrievedChunkCount,
+        includedChunkCount,
+        evidenceCharCount,
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+      },
     };
   }
 
   const parsed = parseAnswerResponse(response.text);
 
-  // 5. Code validation of the model response
+  // 8. Code validation of the model response
   if (!parsed || !VALID_STATUSES.has(parsed.status) || typeof parsed.answer !== 'string') {
+    try {
+      logLlmUsage(db, {
+        operation: 'answer',
+        model: response?.model || options.model || process.env.OPENAI_MODEL || 'gpt-4.1-mini',
+        prompt_tokens: promptTokens,
+        completion_tokens: completionTokens,
+        total_tokens: totalTokens,
+        retrieved_chunk_count: retrievedChunkCount,
+        included_chunk_count: includedChunkCount,
+        evidence_char_count: evidenceCharCount,
+        success: 0,
+        error_category: 'validation',
+      });
+    } catch {}
+
     return {
       status: 'insufficient_evidence',
       answer: 'Insufficient evidence to verify an answer for this question.',
@@ -346,7 +473,15 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
       citations: [],
       events: eventRows,
       receipts: allReceipts,
-      retrieval: filteredHits,
+      retrieval: includedHits,
+      metrics: {
+        retrievedChunkCount,
+        includedChunkCount,
+        evidenceCharCount,
+        promptTokens,
+        completionTokens,
+        totalTokens,
+      },
     };
   }
 
@@ -415,6 +550,22 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
 
   // Fall back only when no supported valid claims remain
   if (validatedClaims.length === 0) {
+    // Log answer attempt (successful synthesis request, but zero valid claims)
+    try {
+      logLlmUsage(db, {
+        operation: 'answer',
+        model: response?.model || options.model || process.env.OPENAI_MODEL || 'gpt-4.1-mini',
+        prompt_tokens: promptTokens,
+        completion_tokens: completionTokens,
+        total_tokens: totalTokens,
+        retrieved_chunk_count: retrievedChunkCount,
+        included_chunk_count: includedChunkCount,
+        evidence_char_count: evidenceCharCount,
+        success: 1,
+        error_category: null,
+      });
+    } catch {}
+
     if (parsed.status === 'answered') {
       return {
         status: 'insufficient_evidence',
@@ -426,7 +577,15 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
         citations: [],
         events: eventRows,
         receipts: allReceipts,
-        retrieval: filteredHits,
+        retrieval: includedHits,
+        metrics: {
+          retrievedChunkCount,
+          includedChunkCount,
+          evidenceCharCount,
+          promptTokens,
+          completionTokens,
+          totalTokens,
+        },
       };
     }
 
@@ -438,11 +597,19 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
       citations: [],
       events: eventRows,
       receipts: allReceipts,
-      retrieval: filteredHits,
+      retrieval: includedHits,
+      metrics: {
+        retrievedChunkCount,
+        includedChunkCount,
+        evidenceCharCount,
+        promptTokens,
+        completionTokens,
+        totalTokens,
+      },
     };
   }
 
-  // 6. Build resolved, verified physical citations from cited receipts
+  // 9. Build resolved, verified physical citations from cited receipts
   const uniqueReceiptIds = Array.from(citedReceiptSet);
   const citations = uniqueReceiptIds.map((rid, idx) => {
     const r = receiptMap.get(rid.toLowerCase());
@@ -465,6 +632,22 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
     };
   });
 
+  // Log successful answer generation with token expenditures
+  try {
+    logLlmUsage(db, {
+      operation: 'answer',
+      model: response?.model || options.model || process.env.OPENAI_MODEL || 'gpt-4.1-mini',
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
+      total_tokens: totalTokens,
+      retrieved_chunk_count: retrievedChunkCount,
+      included_chunk_count: includedChunkCount,
+      evidence_char_count: evidenceCharCount,
+      success: 1,
+      error_category: null,
+    });
+  } catch {}
+
   return {
     status: parsed.status,
     answer: parsed.answer.trim(),
@@ -473,6 +656,15 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
     citations,
     events: eventRows,
     receipts: allReceipts,
-    retrieval: filteredHits,
+    retrieval: includedHits,
+    metrics: {
+      retrievedChunkCount,
+      includedChunkCount,
+      evidenceCharCount,
+      promptTokens,
+      completionTokens,
+      totalTokens,
+    },
   };
 }
+

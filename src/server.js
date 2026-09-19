@@ -10,6 +10,7 @@ import {
   verifyPersonDeletion,
   getDeletionTombstones,
 } from './deletion.js';
+import { getUsageSummary } from './usage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -276,6 +277,17 @@ export function createApp(db = initDatabase(), llm = chatCompletion) {
       return res.json({ ok: true, data: tombstones });
     } catch (err) {
       return res.status(500).json({ ok: false, error: 'Failed to fetch deletion tombstones.' });
+    }
+  });
+
+  // GET /api/usage-summary
+  app.get('/api/usage-summary', (req, res) => {
+    try {
+      const summary = getUsageSummary(db);
+      return res.json({ ok: true, data: summary });
+    } catch (err) {
+      console.error('Server /api/usage-summary error:', err.message);
+      return res.status(500).json({ ok: false, error: 'Failed to fetch usage summary.' });
     }
   });
 

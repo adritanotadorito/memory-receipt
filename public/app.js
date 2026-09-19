@@ -50,6 +50,63 @@ function getPersonInitials(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+/**
+ * Renders data-minimisation and token metrics in the Data Use disclosure panel.
+ * Uses explicit numeric verification (Number.isFinite) to ensure 0 is treated as valid.
+ *
+ * @param {object|null|undefined} metrics
+ */
+function renderDataUseMetrics(metrics) {
+  const duSearched = document.getElementById('du-searched-count');
+  const duIncluded = document.getElementById('du-included-count');
+  const duChar = document.getElementById('du-char-count');
+  const duMetricsBody = document.getElementById('data-use-metrics-body');
+  const duMetricsFallback = document.getElementById('data-use-metrics-fallback');
+  const duInput = document.getElementById('du-metric-input');
+  const duOutput = document.getElementById('du-metric-output');
+  const duTotal = document.getElementById('du-metric-total');
+  const duEvidenceChunks = document.getElementById('du-metric-evidence-chunks');
+  const duEvidenceChars = document.getElementById('du-metric-evidence-chars');
+
+  const hasValidMetrics = metrics && typeof metrics === 'object' && (
+    Number.isFinite(metrics.totalTokens) ||
+    Number.isFinite(metrics.promptTokens) ||
+    Number.isFinite(metrics.completionTokens) ||
+    Number.isFinite(metrics.evidenceCharCount) ||
+    Number.isFinite(metrics.retrievedChunkCount) ||
+    Number.isFinite(metrics.includedChunkCount)
+  );
+
+  if (hasValidMetrics) {
+    const searchedCount = Number.isFinite(metrics.retrievedChunkCount) ? metrics.retrievedChunkCount.toLocaleString() : '0';
+    const includedCount = Number.isFinite(metrics.includedChunkCount) ? metrics.includedChunkCount.toLocaleString() : '0';
+    const charCount = Number.isFinite(metrics.evidenceCharCount) ? metrics.evidenceCharCount.toLocaleString() : '0';
+    const promptTokens = Number.isFinite(metrics.promptTokens) ? metrics.promptTokens.toLocaleString() : '0';
+    const completionTokens = Number.isFinite(metrics.completionTokens) ? metrics.completionTokens.toLocaleString() : '0';
+    const totalTokens = Number.isFinite(metrics.totalTokens) ? metrics.totalTokens.toLocaleString() : '0';
+
+    if (duSearched) duSearched.textContent = searchedCount;
+    if (duIncluded) duIncluded.textContent = includedCount;
+    if (duChar) duChar.textContent = charCount;
+
+    if (duInput) duInput.textContent = `${promptTokens} tokens`;
+    if (duOutput) duOutput.textContent = `${completionTokens} tokens`;
+    if (duTotal) duTotal.textContent = `${totalTokens} tokens`;
+    if (duEvidenceChunks) duEvidenceChunks.textContent = `Selected evidence: ${includedCount} of ${searchedCount} locally retrieved excerpts`;
+    if (duEvidenceChars) duEvidenceChars.textContent = `Evidence supplied for synthesis: ${charCount} characters`;
+
+    if (duMetricsBody) duMetricsBody.classList.remove('hidden');
+    if (duMetricsFallback) duMetricsFallback.classList.add('hidden');
+  } else {
+    if (duSearched) duSearched.textContent = '0';
+    if (duIncluded) duIncluded.textContent = '0';
+    if (duChar) duChar.textContent = '0';
+
+    if (duMetricsBody) duMetricsBody.classList.add('hidden');
+    if (duMetricsFallback) duMetricsFallback.classList.remove('hidden');
+  }
+}
+
 // Initialize Cytoscape container with paper-trail shapes and oxblood accent
 function initCytoscape() {
   if (typeof cytoscape === 'undefined') {
@@ -599,6 +656,10 @@ async function handleAskQuestion(question) {
     } else {
       reasoningBox.classList.add('hidden');
     }
+
+    // Update Data Use Metrics with explicit finite-number checks
+    const metrics = data?.metrics || body?.metrics;
+    renderDataUseMetrics(metrics);
 
     // 4. Claims (Numbered source notes with quiet chronology annotations)
     claimsList.innerHTML = '';

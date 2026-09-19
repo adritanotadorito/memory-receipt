@@ -119,6 +119,41 @@
             <div id="reasoning-note-box" class="reasoning-note hidden">
               <span id="reasoning-note-text"></span>
             </div>
+
+            <!-- Quiet Data Use Disclosure -->
+            <details class="data-use-panel" id="data-use-panel">
+              <summary class="data-use-summary">
+                <span class="data-use-summary-text" id="data-use-summary-text">
+                  Data use for this answer · <span id="du-searched-count">0</span> excerpts searched · <span id="du-included-count">0</span> excerpts supplied to the model · <span id="du-char-count">0</span> characters
+                </span>
+              </summary>
+              <div class="data-use-content">
+                <p class="data-use-line">Search and embeddings run locally in this prototype.</p>
+                <p class="data-use-line">Only the selected evidence excerpts are sent for answer synthesis.</p>
+                <p class="data-use-line">API credentials never reach the browser.</p>
+                <p class="data-use-line">Usage is logged as token counts so administrators can set and monitor budgets.</p>
+                
+                <!-- Dynamic Token & Evidence Metrics -->
+                <div class="data-use-metrics-section" id="data-use-metrics-section">
+                  <div class="data-use-metrics-title">This answer used:</div>
+                  <div class="data-use-metrics-body" id="data-use-metrics-body">
+                    <div class="metric-row"><span class="metric-label">Input:</span> <span class="metric-val" id="du-metric-input">0 tokens</span></div>
+                    <div class="metric-row"><span class="metric-label">Output:</span> <span class="metric-val" id="du-metric-output">0 tokens</span></div>
+                    <div class="metric-row"><span class="metric-label">Total:</span> <span class="metric-val" id="du-metric-total">0 tokens</span></div>
+                    <div class="metric-row metric-row-note" id="du-metric-evidence-chunks">Selected evidence: 0 of 0 locally retrieved excerpts</div>
+                    <div class="metric-row metric-row-note" id="du-metric-evidence-chars">Evidence supplied for synthesis: 0 characters</div>
+                  </div>
+                  <div id="data-use-metrics-fallback" class="data-use-metrics-fallback hidden">
+                    Not recorded for this answer
+                  </div>
+                </div>
+
+                <div class="prototype-boundary-box">
+                  <span class="prototype-boundary-label">Prototype boundary:</span>
+                  <span>Production deployment would additionally filter sources using the employee’s existing Slack, email, and document permissions before retrieval.</span>
+                </div>
+              </div>
+            </details>
           </div>
 
           <!-- What the evidence says (Numbered source notes) -->

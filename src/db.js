@@ -128,6 +128,25 @@ export function initDatabase(dbPath = 'data/memory.db') {
 
     CREATE INDEX IF NOT EXISTS idx_deletion_tombstones_normalized ON deletion_tombstones(normalized_value);
 
+    -- Table to track privacy-preserving LLM usage logs and cost metrics
+    CREATE TABLE IF NOT EXISTS llm_usage_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      created_at TEXT NOT NULL,
+      operation TEXT NOT NULL,
+      model TEXT NOT NULL,
+      prompt_tokens INTEGER NOT NULL,
+      completion_tokens INTEGER NOT NULL,
+      total_tokens INTEGER NOT NULL,
+      retrieved_chunk_count INTEGER NOT NULL,
+      included_chunk_count INTEGER NOT NULL,
+      evidence_char_count INTEGER NOT NULL,
+      success INTEGER NOT NULL CHECK(success IN (0, 1)),
+      error_category TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_llm_usage_log_operation ON llm_usage_log(operation);
+    CREATE INDEX IF NOT EXISTS idx_llm_usage_log_created_at ON llm_usage_log(created_at);
+
     -- FTS5 Full-Text Search Virtual Table for fast, ranked keyword retrieval
     CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
       chunk_id UNINDEXED,
