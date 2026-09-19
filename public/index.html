@@ -1,15 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Memory with a Receipt — Evidence-First Decision Memory</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <script src="/vendor/cytoscape.min.js"></script>
 </head>
+
 <body>
   <div class="desk-container">
     <!-- Editorial Header -->
@@ -73,14 +77,8 @@
         <div class="query-section">
           <form id="qa-form" class="query-form">
             <div class="search-line-wrap">
-              <input
-                type="text"
-                id="question-input"
-                class="query-input"
-                placeholder="Ask about the record…"
-                autocomplete="off"
-                required
-              />
+              <input type="text" id="question-input" class="query-input" placeholder="Ask about the record…"
+                autocomplete="off" required />
               <button type="submit" id="btn-ask" class="btn-ask">
                 <span class="btn-text">Ask</span>
                 <span class="spinner hidden" id="ask-spinner"></span>
@@ -91,7 +89,8 @@
           <!-- Text Link Examples -->
           <div class="example-links">
             <span class="examples-label">Examples:</span>
-            <button type="button" class="example-link chip-btn" data-query="What is the current decision on bakery scope?">
+            <button type="button" class="example-link chip-btn"
+              data-query="What is the current decision on bakery scope?">
               Bakery scope
             </button>
             <span class="link-sep">·</span>
@@ -144,17 +143,15 @@
 
           <div class="deletion-content">
             <p class="deletion-intro">
-              Verify complete, durable removal of a person across all system-derived stores (chunks, search index, vector embeddings, decision events, graph relations, and extraction records). Raw files in <code>corpus/</code> remain immutable on disk, while deleted entities are permanently purged from active memory and immunized against resurrection.
+              Verify complete, durable removal of a person across all system-derived stores (chunks, search index,
+              vector embeddings, decision events, graph relations, and extraction records). Raw files in
+              <code>corpus/</code> remain immutable on disk, while deleted entities are permanently purged from active
+              memory and immunized against resurrection.
             </p>
 
             <div class="deletion-controls">
-              <input
-                type="text"
-                id="deletion-person-input"
-                class="deletion-input"
-                value="Kwame Boateng"
-                placeholder="Enter full person name…"
-              />
+              <input type="text" id="deletion-person-input" class="deletion-input" value="Kwame Boateng"
+                placeholder="Enter full person name…" />
               <button type="button" id="btn-preview-deletion" class="btn-desk-secondary">
                 Preview impact
               </button>
@@ -176,4 +173,5 @@
 
   <script src="app.js"></script>
 </body>
+
 </html>

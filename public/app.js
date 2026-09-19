@@ -20,7 +20,37 @@ function formatReadableEventType(rawType) {
   return t.charAt(0).toUpperCase() + t.slice(1).replace(/_/g, ' ');
 }
 
-// Initialize Cytoscape container with warm editorial palette and oxblood accent
+/**
+ * Formats ISO date string into readable Month Year (e.g., "March 2024").
+ */
+function formatReadableDate(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return '';
+  const trimmed = dateStr.trim();
+  const match = trimmed.match(/^(\d{4})-(\d{2})(?:-(\d{2}))?/);
+  if (match) {
+    const year = match[1];
+    const monthIndex = parseInt(match[2], 10) - 1;
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December',
+    ];
+    const month = months[monthIndex] || '';
+    return month ? `${month} ${year}` : year;
+  }
+  return trimmed;
+}
+
+/**
+ * Computes 2-letter initials for a person name (e.g. "Ana Duarte" -> "AD").
+ */
+function getPersonInitials(name) {
+  if (!name || typeof name !== 'string') return 'P';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+// Initialize Cytoscape container with paper-trail shapes and oxblood accent
 function initCytoscape() {
   if (typeof cytoscape === 'undefined') {
     console.error('Cytoscape library not loaded.');
@@ -42,21 +72,20 @@ function initCytoscape() {
           'text-valign': 'center',
           'text-halign': 'center',
           'text-wrap': 'wrap',
-          'text-max-width': '125px',
-          'border-width': 1.5,
+          'border-width': 1,
           'border-color': '#8A8275',
           'background-color': '#DCD5C9',
           'transition-property': 'opacity, background-color, line-color, target-arrow-color, border-color, width, height',
           'transition-duration': '0.15s',
         },
       },
-      // 1. Decision Event Nodes (Rounded Rectangle)
+      // 1. Decision Event Nodes (Compact Note Card)
       {
         selector: 'node[nodeType = "event"]',
         style: {
           'shape': 'round-rectangle',
           'width': '135px',
-          'height': '46px',
+          'height': '44px',
           'background-color': '#E4DED3',
           'border-color': '#7A7265',
           'border-width': 1.5,
@@ -66,33 +95,44 @@ function initCytoscape() {
           'color': '#22211F',
           'text-valign': 'center',
           'text-halign': 'center',
-          'text-max-width': '115px',
+          'text-max-width': '120px',
         },
       },
-      // 2. Source Document Nodes (Circle/Ellipse)
+      // 2. Source Document Nodes (Small Rectangular Paper Slip)
       {
         selector: 'node[nodeType = "document"]',
         style: {
-          'shape': 'ellipse',
-          'width': '32px',
-          'height': '32px',
-          'background-color': '#D5CEC2',
+          'shape': 'round-rectangle',
+          'width': '115px',
+          'height': '28px',
+          'background-color': '#EAE5DA',
           'border-color': '#8A8275',
-          'border-width': 1.5,
-          'label': '', // hidden by default to prevent clutter
+          'border-width': 1,
+          'label': 'data(shortLabel)',
+          'font-size': '9.5px',
+          'font-family': 'JetBrains Mono, monospace',
+          'color': '#4A463F',
+          'text-valign': 'center',
+          'text-halign': 'center',
+          'text-max-width': '105px',
         },
       },
-      // 3. Person / Actor Nodes (Diamond)
+      // 3. Person / Actor Nodes (Text-First Identity Slip with Initials)
       {
         selector: 'node[nodeType = "person"]',
         style: {
-          'shape': 'diamond',
-          'width': '32px',
-          'height': '32px',
-          'background-color': '#D5CEC2',
-          'border-color': '#8A8275',
-          'border-width': 1.5,
-          'label': '', // hidden by default to prevent clutter
+          'shape': 'round-rectangle',
+          'width': '105px',
+          'height': '26px',
+          'background-color': '#F0ECE4',
+          'border-color': '#9E9689',
+          'border-width': 1,
+          'label': 'data(shortLabel)',
+          'font-size': '9.5px',
+          'color': '#4A463F',
+          'text-valign': 'center',
+          'text-halign': 'center',
+          'text-max-width': '95px',
         },
       },
       // Hovered State for Nodes
@@ -122,23 +162,10 @@ function initCytoscape() {
           'background-color': '#F8EFEF',
           'color': '#22211F',
           'label': 'data(label)',
-          'text-valign': 'top',
-          'text-margin-y': '-6px',
-          'text-background-opacity': 0.96,
-          'text-background-color': '#FAF8F5',
-          'text-background-padding': '3px',
-          'text-background-shape': 'roundrectangle',
-          'font-size': '10px',
-          'z-index': 100,
-        },
-      },
-      // Highlighted Event Node (Keep text centered)
-      {
-        selector: 'node[nodeType = "event"].highlighted',
-        style: {
           'text-valign': 'center',
           'text-margin-y': '0px',
-          'label': 'data(label)',
+          'font-size': '10px',
+          'z-index': 100,
         },
       },
       // Dimmed State for Nodes
@@ -148,15 +175,13 @@ function initCytoscape() {
           'opacity': 0.18,
         },
       },
-      // Base Edge Style (Soft Graphite Gray)
+      // Base Edge Style (Thin, quiet, no arrowheads)
       {
         selector: 'edge',
         style: {
           'width': 1.2,
           'line-color': '#9E9689',
-          'target-arrow-color': '#9E9689',
-          'target-arrow-shape': 'triangle',
-          'arrow-scale': 0.75,
+          'target-arrow-shape': 'none',
           'curve-style': 'bezier',
           'opacity': 0.7,
           'label': '',
@@ -164,14 +189,11 @@ function initCytoscape() {
           'transition-duration': '0.15s',
         },
       },
-      // Highlighted Edge (Restrained oxblood red)
+      // Highlighted Edge (Restrained oxblood red, reveals relationship label)
       {
         selector: 'edge.highlighted',
         style: {
           'line-color': '#A8453C',
-          'target-arrow-color': '#A8453C',
-          'target-arrow-shape': 'triangle',
-          'arrow-scale': 0.85,
           'width': 2,
           'opacity': 1,
           'z-index': 90,
@@ -377,7 +399,7 @@ function renderGraph(graphData) {
   emptyState.classList.add('hidden');
   nodeCountBadge.textContent = `${rawNodes.length} items • ${edges.length} connections`;
 
-  // Clean labels for human presentation (no raw uppercase tags or emoji prefixes)
+  // Clean labels for human presentation (paper trail style)
   const nodes = rawNodes.map((node) => {
     if (!node.data) return node;
 
@@ -389,18 +411,20 @@ function renderGraph(graphData) {
         ...node,
         data: {
           ...node.data,
-          shortLabel: `${readableType}\n${truncatedTopic}`,
-          label: `${readableType}: ${topic}`,
+          shortLabel: `${readableType} — ${truncatedTopic}`,
+          label: `${readableType} — ${topic}`,
         },
       };
     }
 
     if (node.data.nodeType === 'document') {
       const filename = node.data.path ? node.data.path.split('/').pop() : 'Document';
+      const truncatedFile = filename.length > 18 ? filename.slice(0, 16) + '…' : filename;
       return {
         ...node,
         data: {
           ...node.data,
+          shortLabel: truncatedFile,
           label: filename,
         },
       };
@@ -408,11 +432,14 @@ function renderGraph(graphData) {
 
     if (node.data.nodeType === 'person') {
       const personName = node.data.name || 'Person';
+      const initials = getPersonInitials(personName);
+      const truncatedName = personName.length > 14 ? personName.slice(0, 12) + '…' : personName;
       return {
         ...node,
         data: {
           ...node.data,
-          label: personName,
+          shortLabel: `${initials} · ${truncatedName}`,
+          label: `${initials} · ${personName}`,
         },
       };
     }
@@ -573,7 +600,7 @@ async function handleAskQuestion(question) {
       reasoningBox.classList.add('hidden');
     }
 
-    // 4. Claims (Numbered source notes)
+    // 4. Claims (Numbered source notes with quiet chronology annotations)
     claimsList.innerHTML = '';
     const claims = Array.isArray(data.claims) ? data.claims : [];
     if (claims.length === 0) {
@@ -583,13 +610,47 @@ async function handleAskQuestion(question) {
         const item = document.createElement('div');
         item.className = 'claim-item';
 
-        let currencyLabel = 'Current';
-        const curr = (claim.currency || 'uncertain').toLowerCase();
-        if (curr === 'historical') currencyLabel = 'Earlier';
-        else if (curr === 'uncertain') currencyLabel = 'Uncertain';
-
         const rids = claim.receipt_ids || [];
-        const ridsDisplay = rids.join(', ');
+        const matchedCitations = currentCitations.filter((c) => rids.includes(c.receiptId));
+
+        // Find date if available
+        let claimDate = '';
+        for (const cit of matchedCitations) {
+          if (cit.eventDate) {
+            claimDate = formatReadableDate(cit.eventDate);
+            if (claimDate) break;
+          }
+        }
+
+        const curr = (claim.currency || 'current').toLowerCase();
+        let chronologyStatus = 'current record';
+        let currencyClass = 'current';
+
+        if (curr === 'historical') {
+          chronologyStatus = 'earlier context';
+          currencyClass = 'historical';
+        } else if (curr === 'uncertain') {
+          chronologyStatus = 'unresolved';
+          currencyClass = 'uncertain';
+        }
+
+        const chronologyText = claimDate
+          ? `${claimDate} · ${chronologyStatus}`
+          : (chronologyStatus.charAt(0).toUpperCase() + chronologyStatus.slice(1));
+
+        // Source numbering e.g. "Source 01" or "Sources 01, 02"
+        const citationNumbers = matchedCitations
+          .map((c) => (c.citationNumber < 10 ? `0${c.citationNumber}` : `${c.citationNumber}`))
+          .sort();
+
+        let sourceLabel = '';
+        if (citationNumbers.length === 1) {
+          sourceLabel = `Source ${citationNumbers[0]}`;
+        } else if (citationNumbers.length > 1) {
+          sourceLabel = `Sources ${citationNumbers.join(', ')}`;
+        } else {
+          sourceLabel = rids.length > 0 ? `Source ${rids.join(', ')}` : 'Source record';
+        }
 
         let quoteBlock = '';
         if (claim.evidence_quote) {
@@ -597,12 +658,10 @@ async function handleAskQuestion(question) {
         }
 
         item.innerHTML = `
-          <div class="claim-header">
-            <span class="currency-tag ${curr}">${currencyLabel}</span>
-            <span class="claim-text">${idx + 1}. ${escapeHtml(claim.text)}</span>
-          </div>
+          <div class="claim-chronology ${currencyClass}">${escapeHtml(chronologyText)}</div>
+          <div class="claim-text">${idx + 1}. ${escapeHtml(claim.text)}</div>
           ${quoteBlock}
-          <div class="claim-receipt-ref">Based on: ${escapeHtml(ridsDisplay || 'retrieved evidence')}</div>
+          <div class="claim-source-ref">${escapeHtml(sourceLabel)}</div>
         `;
 
         // Click claim to highlight all its supported receipts in graph and cards
@@ -630,7 +689,7 @@ async function handleAskQuestion(question) {
         card.dataset.receiptId = cit.receiptId;
 
         const readableType = formatReadableEventType(cit.eventType);
-        const titleText = cit.topic ? `${readableType}: ${cit.topic}` : readableType;
+        const titleText = cit.topic ? `${readableType} — ${cit.topic}` : readableType;
 
         const attributionParts = [];
         if (cit.actorName) attributionParts.push(cit.actorName);
@@ -639,9 +698,11 @@ async function handleAskQuestion(question) {
           ? `<div class="receipt-meta">${escapeHtml(attributionParts.join(' · '))}</div>`
           : '';
 
+        const citNum = cit.citationNumber < 10 ? `0${cit.citationNumber}` : `${cit.citationNumber}`;
+
         card.innerHTML = `
           <div class="receipt-header">
-            <span class="receipt-location">${escapeHtml(cit.sourceLocation)}</span>
+            <span class="receipt-location">[${citNum}] ${escapeHtml(cit.sourceLocation)}</span>
           </div>
           <div class="receipt-topic">${escapeHtml(titleText)}</div>
           <blockquote class="receipt-quote">“${escapeHtml(cit.exactQuote || '')}”</blockquote>
@@ -649,8 +710,8 @@ async function handleAskQuestion(question) {
           <details class="technical-details">
             <summary>Technical details</summary>
             <div class="tech-content">
-              <span>ID: <code>${escapeHtml(cit.receiptId)}</code></span>
-              <span>Type: <code>${escapeHtml(cit.eventType || 'unknown')}</code></span>
+              <span>Receipt ID: <code>${escapeHtml(cit.receiptId)}</code></span>
+              <span>Event type: <code>${escapeHtml(cit.eventType || 'unknown')}</code></span>
             </div>
           </details>
         `;
