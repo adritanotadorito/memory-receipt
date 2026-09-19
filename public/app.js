@@ -1,11 +1,11 @@
 /**
  * Memory With a Receipt — Frontend Web App
- * Interactive Q&A, Focused Cytoscape Graph, and Deletion Verification
+ * Interactive Q&A, 3-Column Focused Evidence Graph, and Deletion Verification
  */
 
 let cy = null;
 
-// Initialize Cytoscape container with styles
+// Initialize Cytoscape container with refined neutral styles and coral accent
 function initCytoscape() {
   if (typeof cytoscape === 'undefined') {
     console.error('Cytoscape library not loaded.');
@@ -17,148 +17,328 @@ function initCytoscape() {
     boxSelectionEnabled: false,
     autounselectify: false,
     style: [
+      // Base Node Style
       {
         selector: 'node',
         style: {
-          'label': 'data(label)',
-          'color': '#f8fafc',
           'font-family': 'Inter, sans-serif',
-          'font-size': '11px',
+          'font-size': '10px',
+          'color': '#cbd5e1',
           'text-valign': 'center',
           'text-halign': 'center',
           'text-wrap': 'wrap',
-          'text-max-width': '140px',
-          'border-width': 2,
-          'transition-property': 'background-color, line-color, target-arrow-color, border-color, width, height',
+          'text-max-width': '125px',
+          'border-width': 1.5,
+          'border-color': '#334155',
+          'background-color': '#111827',
+          'transition-property': 'opacity, background-color, line-color, target-arrow-color, border-color, width, height, shadow-opacity',
           'transition-duration': '0.2s',
         },
       },
-      // Event Nodes (Current / Historical / Uncertain)
+      // 1. Decision Event Nodes (Rounded Rectangle, Charcoal fill, Slate outline)
       {
         selector: 'node[nodeType = "event"]',
         style: {
           'shape': 'round-rectangle',
-          'width': '150px',
-          'height': '60px',
-          'background-color': '#0f291e',
-          'border-color': '#10b981',
+          'width': '135px',
+          'height': '50px',
+          'background-color': '#141d2b',
+          'border-color': '#475569',
+          'border-width': 1.5,
+          'label': 'data(shortLabel)',
+          'font-size': '10px',
           'font-weight': 600,
+          'color': '#f1f5f9',
+          'text-valign': 'center',
+          'text-halign': 'center',
+          'text-max-width': '115px',
         },
       },
-      {
-        selector: 'node[nodeType = "event"][currency = "historical"]',
-        style: {
-          'background-color': '#2a1a08',
-          'border-color': '#f59e0b',
-        },
-      },
-      {
-        selector: 'node[nodeType = "event"][currency = "uncertain"]',
-        style: {
-          'background-color': '#1e293b',
-          'border-color': '#94a3b8',
-        },
-      },
-      // Document Nodes
+      // 2. Source Document Nodes (Circle/Ellipse, Muted Charcoal, Label hidden by default)
       {
         selector: 'node[nodeType = "document"]',
         style: {
           'shape': 'ellipse',
-          'width': '110px',
-          'height': '60px',
-          'background-color': '#0c2340',
-          'border-color': '#3b82f6',
-          'font-size': '10px',
+          'width': '38px',
+          'height': '38px',
+          'background-color': '#0f172a',
+          'border-color': '#334155',
+          'border-width': 1.5,
+          'label': '', // hidden by default to prevent clutter
         },
       },
-      // Person / Actor Nodes
+      // 3. Person / Actor Nodes (Diamond, Muted Charcoal, Label hidden by default)
       {
         selector: 'node[nodeType = "person"]',
         style: {
-          'shape': 'round-diamond',
-          'width': '100px',
-          'height': '60px',
-          'background-color': '#241038',
-          'border-color': '#a855f7',
-          'font-size': '11px',
+          'shape': 'diamond',
+          'width': '38px',
+          'height': '38px',
+          'background-color': '#0f172a',
+          'border-color': '#334155',
+          'border-width': 1.5,
+          'label': '', // hidden by default to prevent clutter
         },
       },
-      // Highlighted Node State
+      // Hovered State for Nodes
+      {
+        selector: 'node.hovered, node:hover',
+        style: {
+          'border-color': '#94a3b8',
+          'border-width': 2,
+          'label': 'data(label)',
+          'text-valign': 'top',
+          'text-margin-y': '-6px',
+          'text-background-opacity': 0.95,
+          'text-background-color': '#090d16',
+          'text-background-padding': '3px',
+          'text-background-shape': 'roundrectangle',
+          'color': '#f8fafc',
+          'font-size': '10px',
+          'z-index': 99,
+        },
+      },
+      // Highlighted State for Nodes (Selected evidence path in muted pastel coral/red)
       {
         selector: 'node.highlighted',
         style: {
-          'border-width': 4,
-          'border-color': '#38bdf8',
-          'shadow-blur': 15,
-          'shadow-color': '#38bdf8',
-          'shadow-opacity': 0.8,
+          'border-color': '#f87171',
+          'border-width': 2.5,
+          'background-color': '#201518',
+          'shadow-blur': 12,
+          'shadow-color': '#f87171',
+          'shadow-opacity': 0.65,
+          'color': '#ffffff',
+          'label': 'data(label)',
+          'text-valign': 'top',
+          'text-margin-y': '-6px',
+          'text-background-opacity': 0.95,
+          'text-background-color': '#090d16',
+          'text-background-padding': '3px',
+          'text-background-shape': 'roundrectangle',
+          'font-size': '10px',
+          'z-index': 100,
         },
       },
-      // Edges
+      // Highlighted Event Node (Keep text centered)
+      {
+        selector: 'node[nodeType = "event"].highlighted',
+        style: {
+          'text-valign': 'center',
+          'text-margin-y': '0px',
+          'label': 'data(label)',
+        },
+      },
+      // Dimmed State for Nodes
+      {
+        selector: 'node.dimmed',
+        style: {
+          'opacity': 0.18,
+        },
+      },
+      // Base Edge Style (Soft Dark Gray)
       {
         selector: 'edge',
         style: {
-          'width': 2,
+          'width': 1.5,
           'line-color': '#334155',
           'target-arrow-color': '#334155',
           'target-arrow-shape': 'triangle',
+          'arrow-scale': 0.8,
           'curve-style': 'bezier',
+          'opacity': 0.65,
+          'label': '',
+          'transition-property': 'opacity, line-color, target-arrow-color, width',
+          'transition-duration': '0.2s',
+        },
+      },
+      // Highlighted Edge (Muted pastel coral/red with truthful label)
+      {
+        selector: 'edge.highlighted',
+        style: {
+          'line-color': '#f87171',
+          'target-arrow-color': '#f87171',
+          'target-arrow-shape': 'triangle',
+          'arrow-scale': 0.9,
+          'width': 2.5,
+          'opacity': 1,
+          'z-index': 90,
           'label': 'data(label)',
-          'color': '#94a3b8',
           'font-size': '9px',
           'font-family': 'JetBrains Mono, monospace',
-          'text-background-opacity': 0.9,
+          'color': '#fca5a5',
+          'text-background-opacity': 0.95,
           'text-background-color': '#090d16',
           'text-background-padding': '2px',
           'text-background-shape': 'roundrectangle',
           'text-rotation': 'autorotate',
         },
       },
+      // Dimmed Edge
       {
-        selector: 'edge[edgeType = "source"]',
+        selector: 'edge.dimmed',
         style: {
-          'line-color': '#1d4ed8',
-          'target-arrow-color': '#1d4ed8',
-          'line-style': 'dashed',
-        },
-      },
-      {
-        selector: 'edge[edgeType = "attribution"]',
-        style: {
-          'line-color': '#7e22ce',
-          'target-arrow-color': '#7e22ce',
-        },
-      },
-      {
-        selector: 'edge[edgeType = "relation"]',
-        style: {
-          'line-color': '#06b6d4',
-          'target-arrow-color': '#06b6d4',
-          'width': 3,
-        },
-      },
-      {
-        selector: 'edge.highlighted',
-        style: {
-          'line-color': '#38bdf8',
-          'target-arrow-color': '#38bdf8',
-          'width': 4,
+          'opacity': 0.08,
         },
       },
     ],
     elements: [],
     layout: {
-      name: 'cose',
-      animate: false,
+      name: 'preset',
     },
   });
 
   // Node selection handler
   cy.on('tap', 'node', (evt) => {
     const node = evt.target;
-    const nodeId = node.id();
-    highlightReceiptCard(nodeId);
+    const nodeType = node.data('nodeType');
+    if (nodeType === 'event') {
+      const rid = node.id();
+      highlightEvidencePath(rid);
+      highlightReceiptCard(rid);
+    } else {
+      // Document or person: highlight its closed neighborhood
+      cy.elements().removeClass('highlighted dimmed');
+      const closed = node.closedNeighborhood();
+      closed.nodes().addClass('highlighted');
+      closed.edges().addClass('highlighted');
+      cy.elements().not(closed).addClass('dimmed');
+
+      const connectedEvents = node.neighborhood('node[nodeType = "event"]');
+      const rids = connectedEvents.map((n) => n.id());
+      document.querySelectorAll('.receipt-card').forEach((card) => {
+        card.classList.toggle('active-receipt', rids.includes(card.dataset.receiptId));
+      });
+    }
   });
+
+  // Canvas background tap resets to quiet default state
+  cy.on('tap', (evt) => {
+    if (evt.target === cy) {
+      resetHighlight();
+    }
+  });
+
+  // Hover handlers for document and person labels
+  cy.on('mouseover', 'node', (evt) => {
+    evt.target.addClass('hovered');
+  });
+  cy.on('mouseout', 'node', (evt) => {
+    evt.target.removeClass('hovered');
+  });
+}
+
+/**
+ * Three-column evidence layout:
+ * - Column 1 (Left): Source documents
+ * - Column 2 (Middle): Decision events
+ * - Column 3 (Right): People / Actors
+ * Optimizes vertical ordering to minimize edge crossings.
+ */
+function applyThreeColumnEvidenceLayout(cyInstance) {
+  if (!cyInstance) return;
+
+  const docNodes = cyInstance.nodes('[nodeType = "document"]');
+  const eventNodes = cyInstance.nodes('[nodeType = "event"]');
+  const personNodes = cyInstance.nodes('[nodeType = "person"]');
+
+  if (cyInstance.nodes().length === 0) return;
+
+  // 1. Sort events predictably by receipt/event ID
+  const sortedEvents = eventNodes.toArray().sort((a, b) => {
+    return a.id().localeCompare(b.id(), undefined, { numeric: true });
+  });
+
+  const eventIndexMap = new Map();
+  sortedEvents.forEach((ev, idx) => {
+    eventIndexMap.set(ev.id(), idx);
+  });
+
+  // 2. Sort documents by average connected event index to minimize crossing lines
+  const sortedDocs = docNodes.toArray().sort((a, b) => {
+    const connA = a.neighborhood('node[nodeType = "event"]');
+    const connB = b.neighborhood('node[nodeType = "event"]');
+    const avgA = connA.length > 0
+      ? connA.toArray().reduce((sum, n) => sum + (eventIndexMap.get(n.id()) ?? 0), 0) / connA.length
+      : 0;
+    const avgB = connB.length > 0
+      ? connB.toArray().reduce((sum, n) => sum + (eventIndexMap.get(n.id()) ?? 0), 0) / connB.length
+      : 0;
+    return avgA - avgB;
+  });
+
+  // 3. Sort people by average connected event index to minimize crossing lines
+  const sortedPersons = personNodes.toArray().sort((a, b) => {
+    const connA = a.neighborhood('node[nodeType = "event"]');
+    const connB = b.neighborhood('node[nodeType = "event"]');
+    const avgA = connA.length > 0
+      ? connA.toArray().reduce((sum, n) => sum + (eventIndexMap.get(n.id()) ?? 0), 0) / connA.length
+      : 0;
+    const avgB = connB.length > 0
+      ? connB.toArray().reduce((sum, n) => sum + (eventIndexMap.get(n.id()) ?? 0), 0) / connB.length
+      : 0;
+    return avgA - avgB;
+  });
+
+  // Column X Coordinates
+  const X_DOC = 80;
+  const X_EVENT = 320;
+  const X_PERSON = 560;
+
+  // Vertical steps and centering
+  const Y_EVENT_STEP = 75;
+  const numEvents = Math.max(1, sortedEvents.length);
+  const numDocs = Math.max(1, sortedDocs.length);
+  const numPersons = Math.max(1, sortedPersons.length);
+
+  const Y_DOC_STEP = Math.max(60, (numEvents * Y_EVENT_STEP) / numDocs);
+  const Y_PERSON_STEP = Math.max(60, (numEvents * Y_EVENT_STEP) / numPersons);
+
+  const totalEventHeight = (sortedEvents.length - 1) * Y_EVENT_STEP;
+  const totalDocHeight = (sortedDocs.length - 1) * Y_DOC_STEP;
+  const totalPersonHeight = (sortedPersons.length - 1) * Y_PERSON_STEP;
+  const maxHeight = Math.max(totalEventHeight, totalDocHeight, totalPersonHeight, 100);
+
+  const posMap = {};
+
+  // Assign Column 1 positions (Source Documents)
+  sortedDocs.forEach((node, i) => {
+    const startY = (maxHeight - totalDocHeight) / 2 + 50;
+    posMap[node.id()] = {
+      x: X_DOC,
+      y: startY + i * Y_DOC_STEP,
+    };
+  });
+
+  // Assign Column 2 positions (Decision Events)
+  sortedEvents.forEach((node, i) => {
+    const startY = (maxHeight - totalEventHeight) / 2 + 50;
+    posMap[node.id()] = {
+      x: X_EVENT,
+      y: startY + i * Y_EVENT_STEP,
+    };
+  });
+
+  // Assign Column 3 positions (People / Actors)
+  sortedPersons.forEach((node, i) => {
+    const startY = (maxHeight - totalPersonHeight) / 2 + 50;
+    posMap[node.id()] = {
+      x: X_PERSON,
+      y: startY + i * Y_PERSON_STEP,
+    };
+  });
+
+  // Run preset layout
+  const layout = cyInstance.layout({
+    name: 'preset',
+    positions: (node) => posMap[node.id()] || { x: X_EVENT, y: 50 },
+    animate: true,
+    animationDuration: 350,
+    fit: true,
+    padding: 35,
+  });
+
+  layout.run();
 }
 
 // Render graph elements from server response
@@ -169,10 +349,10 @@ function renderGraph(graphData) {
   if (!cy) initCytoscape();
   if (!cy) return;
 
-  const nodes = graphData && Array.isArray(graphData.nodes) ? graphData.nodes : [];
+  const rawNodes = graphData && Array.isArray(graphData.nodes) ? graphData.nodes : [];
   const edges = graphData && Array.isArray(graphData.edges) ? graphData.edges : [];
 
-  if (nodes.length === 0) {
+  if (rawNodes.length === 0) {
     emptyState.classList.remove('hidden');
     nodeCountBadge.textContent = '0 nodes';
     cy.elements().remove();
@@ -180,52 +360,93 @@ function renderGraph(graphData) {
   }
 
   emptyState.classList.add('hidden');
-  nodeCountBadge.textContent = `${nodes.length} nodes &bull; ${edges.length} edges`;
+  nodeCountBadge.textContent = `${rawNodes.length} nodes • ${edges.length} edges`;
+
+  // Prepare shortLabel for event nodes to reduce label clutter
+  const nodes = rawNodes.map((node) => {
+    if (node.data && node.data.nodeType === 'event') {
+      const topic = node.data.topic || '';
+      const type = (node.data.eventType || 'DECISION').toUpperCase();
+      const truncatedTopic = topic.length > 22 ? topic.slice(0, 20) + '…' : topic;
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          shortLabel: `[${type}]\n${truncatedTopic}`,
+        },
+      };
+    }
+    return node;
+  });
 
   cy.elements().remove();
   cy.add([...nodes, ...edges]);
 
-  // Run layout
-  const layout = cy.layout({
-    name: 'cose',
-    animate: true,
-    animationDuration: 500,
-    nodeRepulsion: 6500,
-    idealEdgeLength: 100,
-    edgeElasticity: 100,
-    nestingFactor: 5,
-    gravity: 80,
-    numIter: 1000,
-    padding: 30,
-  });
-
-  layout.run();
+  // Apply three-column evidence layout
+  applyThreeColumnEvidenceLayout(cy);
 }
 
 // Highlight corresponding receipt card on node click
 function highlightReceiptCard(nodeId) {
   document.querySelectorAll('.receipt-card').forEach((card) => {
-    card.classList.remove('active-receipt');
-    if (card.dataset.receiptId === nodeId) {
-      card.classList.add('active-receipt');
+    const isMatch = card.dataset.receiptId === nodeId;
+    card.classList.toggle('active-receipt', isMatch);
+    if (isMatch) {
       card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   });
 }
 
-// Highlight node in Cytoscape when receipt is clicked/hovered
-function highlightGraphNode(receiptId) {
+// Highlight connected evidence path for given receipt IDs
+function highlightEvidencePath(targetIds) {
   if (!cy) return;
-  cy.elements().removeClass('highlighted');
-  const node = cy.getElementById(receiptId);
-  if (node && node.length > 0) {
-    node.addClass('highlighted');
-    node.connectedEdges().addClass('highlighted');
-    cy.animate({
-      center: { eles: node },
-      duration: 300,
-    });
+  const idArray = (Array.isArray(targetIds) ? targetIds : [targetIds]).filter(Boolean);
+
+  if (idArray.length === 0) {
+    resetHighlight();
+    return;
   }
+
+  // Find target nodes and closed neighborhoods
+  let targetNodes = cy.collection();
+  idArray.forEach((id) => {
+    const node = cy.getElementById(id);
+    if (node && node.length > 0) {
+      targetNodes = targetNodes.union(node);
+      targetNodes = targetNodes.union(node.neighborhood());
+    }
+  });
+
+  if (targetNodes.length === 0) {
+    resetHighlight();
+    return;
+  }
+
+  // Clear previous state
+  cy.elements().removeClass('highlighted dimmed');
+
+  // Highlight active path; dim everything else
+  targetNodes.nodes().addClass('highlighted');
+  targetNodes.edges().addClass('highlighted');
+  cy.elements().not(targetNodes).addClass('dimmed');
+
+  // Highlight matching receipt cards
+  document.querySelectorAll('.receipt-card').forEach((card) => {
+    const isMatch = idArray.includes(card.dataset.receiptId);
+    card.classList.toggle('active-receipt', isMatch);
+  });
+}
+
+// Reset graph and list highlights to quiet default state
+function resetHighlight() {
+  if (!cy) return;
+  cy.elements().removeClass('highlighted dimmed hovered');
+  document.querySelectorAll('.receipt-card').forEach((card) => {
+    card.classList.remove('active-receipt');
+  });
+  document.querySelectorAll('.claim-item').forEach((item) => {
+    item.classList.remove('active-claim');
+  });
 }
 
 // Execute question query
@@ -296,11 +517,12 @@ async function handleAskQuestion(question) {
         item.className = 'claim-item';
 
         const curr = (claim.currency || 'uncertain').toLowerCase();
-        const rids = (claim.receipt_ids || []).map((r) => `[${r}]`).join(' ');
+        const rids = claim.receipt_ids || [];
+        const ridsDisplay = rids.map((r) => `[${r}]`).join(' ');
 
         let quoteBlock = '';
         if (claim.evidence_quote) {
-          quoteBlock = `<div class="claim-quote-box">Quote: "${claim.evidence_quote}"</div>`;
+          quoteBlock = `<div class="claim-quote-box">Quote: "${escapeHtml(claim.evidence_quote)}"</div>`;
         }
 
         item.innerHTML = `
@@ -308,9 +530,20 @@ async function handleAskQuestion(question) {
             <span class="currency-tag ${curr}">${curr.toUpperCase()}</span>
             <span class="claim-text">${idx + 1}. ${escapeHtml(claim.text)}</span>
           </div>
-          <div class="claim-receipt-ref">Supported by receipt: ${rids}</div>
+          <div class="claim-receipt-ref">Supported by receipt: ${escapeHtml(ridsDisplay)}</div>
           ${quoteBlock}
         `;
+
+        // Click claim to highlight all its supported receipts in graph and cards
+        item.addEventListener('click', () => {
+          document.querySelectorAll('.claim-item').forEach((ci) => ci.classList.remove('active-claim'));
+          item.classList.add('active-claim');
+          highlightEvidencePath(rids);
+          if (rids.length > 0) {
+            highlightReceiptCard(rids[0]);
+          }
+        });
+
         claimsList.appendChild(item);
       });
     }
@@ -326,8 +559,8 @@ async function handleAskQuestion(question) {
         card.className = 'receipt-card';
         card.dataset.receiptId = cit.receiptId;
 
-        const actor = cit.actorName ? ` &bull; 👤 ${escapeHtml(cit.actorName)}` : '';
-        const date = cit.eventDate ? ` &bull; 📅 ${escapeHtml(cit.eventDate)}` : '';
+        const actor = cit.actorName ? ` • 👤 ${escapeHtml(cit.actorName)}` : '';
+        const date = cit.eventDate ? ` • 📅 ${escapeHtml(cit.eventDate)}` : '';
 
         card.innerHTML = `
           <div class="receipt-header">
@@ -338,8 +571,12 @@ async function handleAskQuestion(question) {
           <div class="receipt-quote">"${escapeHtml(cit.exactQuote || '')}"</div>
         `;
 
-        card.addEventListener('mouseenter', () => highlightGraphNode(cit.receiptId));
-        card.addEventListener('click', () => highlightGraphNode(cit.receiptId));
+        // Hover & click highlight connected evidence path
+        card.addEventListener('mouseenter', () => highlightEvidencePath(cit.receiptId));
+        card.addEventListener('click', () => {
+          highlightEvidencePath(cit.receiptId);
+          card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
 
         receiptsList.appendChild(card);
       });
@@ -486,7 +723,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Graph toolbar buttons
   document.getElementById('btn-fit-graph')?.addEventListener('click', () => {
-    if (cy) cy.fit();
+    if (cy) cy.fit(undefined, 35);
   });
   document.getElementById('btn-reset-zoom')?.addEventListener('click', () => {
     if (cy) {

@@ -247,7 +247,7 @@ body {
 
 .graph-legend {
   padding: 10px 16px;
-  background: #0d1424;
+  background: #0d121c;
   border-top: 1px solid var(--border);
   font-size: 11px;
   display: flex;
@@ -259,12 +259,15 @@ body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
 
 .legend-label {
   color: var(--text-muted);
   font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .legend-item {
@@ -272,28 +275,50 @@ body {
   align-items: center;
   gap: 6px;
   color: var(--text-secondary);
+  font-size: 11px;
 }
 
 .node-swatch {
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
+  display: inline-block;
+  vertical-align: middle;
 }
 
-.current-swatch { background: var(--accent-green); }
-.historical-swatch { background: var(--accent-amber); }
-.doc-swatch { background: var(--accent-blue); }
-.actor-swatch { background: var(--accent-purple); }
+.event-swatch {
+  width: 13px;
+  height: 9px;
+  border-radius: 2px;
+  background: #1e293b;
+  border: 1px solid #64748b;
+}
+
+.doc-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #1e293b;
+  border: 1px solid #64748b;
+}
+
+.person-swatch {
+  width: 8px;
+  height: 8px;
+  transform: rotate(45deg);
+  background: #1e293b;
+  border: 1px solid #64748b;
+  margin: 0 2px;
+}
 
 .edge-line {
-  width: 16px;
-  height: 2px;
-  border-radius: 1px;
+  display: inline-block;
+  vertical-align: middle;
 }
 
-.source-line { background: #64748b; }
-.actor-line { background: #a855f7; }
-.rel-line { background: var(--accent-cyan); }
+.evidence-line {
+  width: 16px;
+  height: 2px;
+  background: #64748b;
+  border-radius: 1px;
+}
 
 /* Right Panel: Q&A */
 .qa-panel {
@@ -507,12 +532,19 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 12px 14px;
+  cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .claim-item:hover {
-  border-color: #3b82f6;
+  border-color: #4b5563;
   background: var(--bg-card-hover);
+}
+
+.claim-item.active-claim {
+  border-color: #f87171;
+  background: #1a1316;
+  box-shadow: 0 0 10px rgba(248, 113, 113, 0.2);
 }
 
 .claim-header {
@@ -531,19 +563,19 @@ body {
 }
 
 .currency-tag.current {
-  background: rgba(16, 185, 129, 0.15);
+  background: rgba(16, 185, 129, 0.12);
   color: #34d399;
   border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
 .currency-tag.historical {
-  background: rgba(245, 158, 11, 0.15);
+  background: rgba(245, 158, 11, 0.12);
   color: #fbbf24;
   border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
 .currency-tag.uncertain {
-  background: rgba(148, 163, 184, 0.15);
+  background: rgba(148, 163, 184, 0.12);
   color: #cbd5e1;
   border: 1px solid rgba(148, 163, 184, 0.3);
 }
@@ -557,7 +589,7 @@ body {
 .claim-receipt-ref {
   margin-top: 6px;
   font-size: 12px;
-  color: #93c5fd;
+  color: var(--text-muted);
   font-family: var(--font-mono);
 }
 
@@ -565,7 +597,7 @@ body {
   margin-top: 6px;
   padding: 8px 10px;
   background: #080c14;
-  border-left: 3px solid var(--accent-blue);
+  border-left: 3px solid #64748b;
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   font-size: 12px;
   font-family: var(--font-mono);
@@ -589,8 +621,14 @@ body {
 }
 
 .receipt-card:hover {
-  border-color: var(--accent-cyan);
-  background: #141f33;
+  border-color: #4b5563;
+  background: #141c2b;
+}
+
+.receipt-card.active-receipt {
+  border-color: #f87171;
+  background: #1a1316;
+  box-shadow: 0 0 12px rgba(248, 113, 113, 0.25);
 }
 
 .receipt-header {
@@ -604,7 +642,11 @@ body {
   font-size: 12px;
   font-family: var(--font-mono);
   font-weight: 600;
-  color: var(--accent-cyan);
+  color: #cbd5e1;
+}
+
+.receipt-card.active-receipt .receipt-id {
+  color: #fca5a5;
 }
 
 .receipt-location {
