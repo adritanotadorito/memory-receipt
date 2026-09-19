@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Memory With a Receipt — Evidence-First Decision Memory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="/vendor/cytoscape.min.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="header-logo-icon">🧾</div>
+        <div>
+          <h1 class="header-title">Memory With a Receipt</h1>
+          <p class="header-subtitle">Evidence-first enterprise decision memory & audit system</p>
+        </div>
+      </div>
+      <div class="header-badges">
+        <span class="trust-badge">
+          <span class="badge-dot"></span>
+          Every claim has a receipt
+        </span>
+        <span class="sqlite-badge">794 Chunks &bull; SQLite Grounded</span>
+      </div>
+    </header>
+
+    <!-- Main Workspace Grid -->
+    <main class="workspace-grid">
+      <!-- Left Column: Focused Evidence Graph -->
+      <section class="graph-panel">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <h2 class="panel-title">Focused Evidence Graph</h2>
+            <span class="panel-hint" id="graph-node-count">0 nodes</span>
+          </div>
+          <div class="graph-controls">
+            <button id="btn-fit-graph" class="btn-icon" title="Fit to screen">⛶ Fit</button>
+            <button id="btn-reset-zoom" class="btn-icon" title="Reset zoom">🔍 100%</button>
+          </div>
+        </div>
+
+        <div id="cy-container" class="cy-wrapper">
+          <div id="cy"></div>
+          <div id="graph-empty-state" class="graph-empty-state">
+            <div class="empty-icon">🕸️</div>
+            <div class="empty-title">Evidence Graph Idle</div>
+            <p class="empty-desc">Ask a question to render the focused causal network of decision events, source documents, and actors.</p>
+          </div>
+        </div>
+
+        <!-- Graph Legend -->
+        <div class="graph-legend">
+          <div class="legend-group">
+            <span class="legend-label">Nodes:</span>
+            <span class="legend-item"><span class="node-swatch current-swatch"></span> Current Decision</span>
+            <span class="legend-item"><span class="node-swatch historical-swatch"></span> Historical / Proposal</span>
+            <span class="legend-item"><span class="node-swatch doc-swatch"></span> Source Document</span>
+            <span class="legend-item"><span class="node-swatch actor-swatch"></span> Actor / Person</span>
+          </div>
+          <div class="legend-group">
+            <span class="legend-label">Edges:</span>
+            <span class="legend-item"><span class="edge-line source-line"></span> from source</span>
+            <span class="legend-item"><span class="edge-line actor-line"></span> attributed to</span>
+            <span class="legend-item"><span class="edge-line rel-line"></span> supports / supersedes</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Query & Grounded Answer -->
+      <section class="qa-panel">
+        <!-- Question Input Card -->
+        <div class="query-card">
+          <form id="qa-form" class="query-form">
+            <div class="input-wrapper">
+              <input
+                type="text"
+                id="question-input"
+                class="query-input"
+                placeholder="Ask about project decisions, cutovers, field mappings, or commitments..."
+                autocomplete="off"
+                required
+              />
+              <button type="submit" id="btn-ask" class="btn-ask">
+                <span class="btn-text">Ask Memory</span>
+                <span class="spinner hidden" id="ask-spinner"></span>
+              </button>
+            </div>
+          </form>
+
+          <!-- Example Question Chips -->
+          <div class="example-chips">
+            <span class="chips-label">Try example:</span>
+            <button class="chip-btn" data-query="What is the current decision on bakery scope?">
+              🍰 Bakery scope decision
+            </button>
+            <button class="chip-btn" data-query="What changed about the fresh cutover?">
+              🔄 Fresh cutover changes
+            </button>
+            <button class="chip-btn" data-query="What commitments remain unresolved?">
+              ⚠️ Unresolved commitments
+            </button>
+          </div>
+        </div>
+
+        <!-- Dynamic Answer Container -->
+        <div id="answer-container" class="answer-container hidden">
+          <!-- Status Banner & Answer Synthesis -->
+          <div class="answer-card">
+            <div class="answer-header">
+              <span id="status-pill" class="status-pill">ANSWERED</span>
+              <span id="citation-count-badge" class="meta-badge">0 Receipts</span>
+            </div>
+
+            <div class="answer-body">
+              <h3 class="answer-label">Grounded Synthesis</h3>
+              <p id="grounded-answer-text" class="grounded-answer"></p>
+            </div>
+
+            <div id="reasoning-note-box" class="reasoning-box hidden">
+              <span class="reasoning-icon">⚠️</span>
+              <span id="reasoning-note-text" class="reasoning-text"></span>
+            </div>
+          </div>
+
+          <!-- Verified Atomic Claims Section -->
+          <div class="section-card">
+            <h3 class="section-title">Verified Atomic Claims</h3>
+            <div id="claims-list" class="claims-list"></div>
+          </div>
+
+          <!-- Physical Receipts Section -->
+          <div class="section-card">
+            <h3 class="section-title">Verified Receipts (Physical Source Coordinates)</h3>
+            <div id="receipts-list" class="receipts-list"></div>
+          </div>
+        </div>
+
+        <!-- Privacy & Deletion Proof Section -->
+        <details class="deletion-panel" id="deletion-panel">
+          <summary class="deletion-summary">
+            <span class="deletion-summary-title">🔒 Right to be Forgotten / Deletion Proof</span>
+            <span class="deletion-badge">GDPR / Audit Ready</span>
+          </summary>
+
+          <div class="deletion-content">
+            <p class="deletion-intro">
+              Verify true, durable removal of a person across all system-derived stores (chunks, FTS5 index, vector embeddings, decision events, graph relations, and extraction records). Raw files in <code>corpus/</code> remain immutable on disk, but deleted entities are permanently purged from memory and immunized against resurrection.
+            </p>
+
+            <div class="deletion-controls">
+              <input
+                type="text"
+                id="deletion-person-input"
+                class="deletion-input"
+                value="Kwame Boateng"
+                placeholder="Enter full person name..."
+              />
+              <button type="button" id="btn-preview-deletion" class="btn-secondary">
+                Preview Impact
+              </button>
+              <button type="button" id="btn-confirm-deletion" class="btn-danger">
+                Confirm Permanent Deletion
+              </button>
+            </div>
+
+            <!-- Deletion Preview Box -->
+            <div id="deletion-preview-results" class="deletion-results hidden"></div>
+
+            <!-- Deletion Audit Report -->
+            <div id="deletion-report" class="deletion-report hidden"></div>
+          </div>
+        </details>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

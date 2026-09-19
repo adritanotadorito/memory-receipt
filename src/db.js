@@ -115,6 +115,19 @@ export function initDatabase(dbPath = 'data/memory.db') {
 
     CREATE INDEX IF NOT EXISTS idx_chunk_extractions_chunk_id ON chunk_extractions(chunk_id);
 
+    -- Table to track durable deletion tombstones for right-to-be-forgotten / person purges
+    CREATE TABLE IF NOT EXISTS deletion_tombstones (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      target_type TEXT NOT NULL CHECK(target_type IN ('person')),
+      target_value TEXT NOT NULL,
+      normalized_value TEXT NOT NULL UNIQUE,
+      requested_at TEXT NOT NULL,
+      completed_at TEXT,
+      details_json TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_deletion_tombstones_normalized ON deletion_tombstones(normalized_value);
+
     -- FTS5 Full-Text Search Virtual Table for fast, ranked keyword retrieval
     CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
       chunk_id UNINDEXED,

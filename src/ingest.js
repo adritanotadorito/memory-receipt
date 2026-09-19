@@ -249,6 +249,18 @@ export function ingestCorpus(db, corpusDir = 'corpus/acme') {
   let updatedDocsCount = 0;
   let skippedDocsCount = 0;
 
+  // Load active completed deletion tombstones for persons
+  let tombstoneNames = [];
+  try {
+    const tombstoneRows = db.prepare(`
+      SELECT normalized_value FROM deletion_tombstones
+      WHERE target_type = 'person' AND completed_at IS NOT NULL
+    `).all();
+    tombstoneNames = tombstoneRows.map((r) => r.normalized_value);
+  } catch {
+    // Table may not exist yet in legacy or mock databases
+  }
+
   // Prepared SQL statements for high performance and atomicity
   const selectDocStmt = db.prepare('SELECT id, content_hash FROM documents WHERE relative_path = ?');
   const insertDocStmt = db.prepare(`
@@ -287,7 +299,15 @@ export function ingestCorpus(db, corpusDir = 'corpus/acme') {
         continue;
       }
 
-      const chunks = createLineBasedChunks(rawContent, file.relativePath, docId);
+      const allChunks = createLineBasedChunks(rawContent, file.relativePath, docId);
+      // Filter out chunks containing tombstoned person names
+      const chunks = tombstoneNames.length > 0
+        ? allChunks.filter((chunk) => {
+            const textLower = chunk.chunkText.toLowerCase();
+            return !tombstoneNames.some((tName) => textLower.includes(tName));
+          })
+        : allChunks;
+
       const timestamp = now();
 
       const transaction = db.transaction(() => {
