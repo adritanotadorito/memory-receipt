@@ -141,14 +141,14 @@ export function parseModelJson(rawText) {
       try {
         const obj = JSON.parse(objectMatch[0]);
         if (Array.isArray(obj.events)) return obj.events;
-      } catch {}
+      } catch { }
     }
 
     const arrayMatch = cleaned.match(/\[\s*\{[\s\S]*\}\s*\]/);
     if (arrayMatch) {
       try {
         return JSON.parse(arrayMatch[0]);
-      } catch {}
+      } catch { }
     }
     return [];
   }
@@ -420,7 +420,7 @@ export async function extractAllChunks(db, options = {}) {
   const force = options.force === true;
   const resume = !force && options.resume !== false;
   const concurrency = typeof options.concurrency === 'number' && options.concurrency > 0 ? options.concurrency : 2;
-  const onProgress = typeof options.onProgress === 'function' ? options.onProgress : () => {};
+  const onProgress = typeof options.onProgress === 'function' ? options.onProgress : () => { };
 
   const startTime = Date.now();
 

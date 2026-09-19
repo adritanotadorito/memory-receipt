@@ -1,18 +1,5 @@
 /**
- * ============================================================================
- * OPENAI INFERENCE CLIENT (PHASE 5A)
- * ============================================================================
- *
- * Lightweight, zero-dependency client connecting to OpenAI Chat Completions API.
- *
- * Safety & Grounding Principles:
- * 1. Secrets & Credentials:
- *    - Never logged, printed, or exposed in error messages or audit dumps.
- * 2. Timeout & Resource Guard:
- *    - Strict 60-second AbortController timeout prevents hanging requests.
- * 3. Validation:
- *    - Verifies API key, messages, HTTP status, and response structure.
- * ============================================================================
+ * OpenAI Chat Completions client with request timeouts and structured error handling.
  */
 
 export const OPENAI_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
@@ -40,7 +27,6 @@ export const DEFAULT_FALLBACK_MODEL = 'gpt-4.1-mini';
 export async function chatCompletion(messages, options = {}) {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
 
-  // 1. Validate configuration
   if (!apiKey) {
     throw new Error('Missing required environment variable: OPENAI_API_KEY');
   }
@@ -54,7 +40,6 @@ export async function chatCompletion(messages, options = {}) {
     ? options.timeoutMs
     : DEFAULT_TIMEOUT_MS;
 
-  // 2. Build OpenAI chat completions request payload
   const payload = {
     model,
     messages,
@@ -74,7 +59,6 @@ export async function chatCompletion(messages, options = {}) {
     payload.response_format = responseFormat;
   }
 
-  // 3. Prepare Timeout & Request
   const controller = new AbortController();
   const timer = setTimeout(() => {
     controller.abort(new Error(`LLM request timed out after ${timeoutMs}ms`));
@@ -100,7 +84,7 @@ export async function chatCompletion(messages, options = {}) {
     clearTimeout(timer);
   }
 
-  // 4. Handle non-2xx HTTP responses without leaking credentials or prompts
+  // Handle non-2xx responses without leaking credentials or request payloads
   if (!response.ok) {
     let errorDetails = '';
     try {
@@ -118,7 +102,6 @@ export async function chatCompletion(messages, options = {}) {
     throw new Error(`LLM request failed with status ${response.status} (${response.statusText}): ${errorDetails}`);
   }
 
-  // 5. Parse response JSON
   let data;
   try {
     data = await response.json();
@@ -126,7 +109,6 @@ export async function chatCompletion(messages, options = {}) {
     throw new Error('LLM returned invalid or malformed JSON response');
   }
 
-  // 6. Validate choices and message content
   if (
     !data ||
     !Array.isArray(data.choices) ||

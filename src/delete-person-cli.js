@@ -68,7 +68,6 @@ async function main() {
       return;
     }
 
-    // Execute confirmed deletion
     console.log('--- Executing Deletion ---');
     const result = deletePersonData(db, personName);
 
@@ -82,7 +81,6 @@ async function main() {
     console.log('  ✅ Stored durable deletion tombstone (immunizes future ingestion)');
     console.log('');
 
-    // Verification check
     console.log('--- Post-Deletion Verification ---');
     const ver = result.verification;
     console.log(`  • Remaining Chunks:        ${ver.remainingChunks} ${ver.remainingChunks === 0 ? '✅ (Zero trace)' : '❌'}`);

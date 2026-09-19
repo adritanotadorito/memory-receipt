@@ -33,7 +33,6 @@ async function main() {
   try {
     const result = await answerQuestion(db, question);
 
-    // 1. Status badge
     let statusLabel = 'UNKNOWN';
     if (result.status === 'answered') statusLabel = '✅ ANSWERED (HIGH CONFIDENCE)';
     else if (result.status === 'conflicting_evidence') statusLabel = '⚠️  CONFLICTING EVIDENCE DETECTED';
@@ -41,22 +40,18 @@ async function main() {
 
     console.log(`Status:  ${statusLabel}\n`);
 
-    // 2. Plain-English Grounded Answer
     console.log('--- Grounded Answer ---');
     console.log(result.answer);
     console.log('');
 
-    // 3. Reasoning / Conflict Note (if present)
     if (result.reasoningNote) {
       console.log('--- Discrepancy / Uncertainty Note ---');
       console.log(`⚠️  ${result.reasoningNote}\n`);
     }
 
-    // 4. Atomic Claims with currency, citation numbers, and exact supporting receipt quotes
     if (result.claims && result.claims.length > 0) {
       console.log('--- Verified Atomic Claims ---');
       result.claims.forEach((claim, i) => {
-        // Map receipt IDs to citation numbers
         const citationNumbers = (claim.receipt_ids || claim.evidence_ids || []).map((rid) => {
           const matched = result.citations.find((c) => c.receiptId === rid);
           return matched ? `[${matched.citationNumber}]` : `[${rid}]`;
@@ -65,7 +60,6 @@ async function main() {
         const currencyTag = `[${claim.currency.toUpperCase()}]`.padEnd(14);
         console.log(`  ${i + 1}. ${currencyTag} ${claim.text} ${citationNumbers}`);
 
-        // Display each supporting verified receipt quote and source location
         if (claim.receipts && claim.receipts.length > 0) {
           claim.receipts.forEach((r) => {
             console.log(`     • Verified Receipt [${r.receiptId}]: ${r.sourceLocation} (${r.category})`);
@@ -78,7 +72,6 @@ async function main() {
       console.log('');
     }
 
-    // 5. Numbered Verified Physical Citations
     if (result.citations && result.citations.length > 0) {
       console.log('--- Verified Receipts (Physical Citations) ---');
       result.citations.forEach((cit) => {
@@ -91,7 +84,6 @@ async function main() {
       console.log('');
     }
 
-    // 6. Linked Decision Ledger Events
     if (result.events && result.events.length > 0) {
       console.log('--- Linked Decision Ledger Events ---');
       result.events.slice(0, 5).forEach((ev) => {

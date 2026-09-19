@@ -46,6 +46,236 @@ export function normalizePersonName(personName) {
 }
 
 /**
+ * ============================================================================
+ * DECISION BLAST RADIUS (PHASE 10)
+ * ============================================================================
+ *
+ * 1. SOURCE DELETION VS. DERIVED-DATA DELETION:
+ * ----------------------------------------------------------------------------
+ * A core architectural principle of "Memory With a Receipt" is that GDPR / Right
+ * to be Forgotten purges operate exclusively on derived AI data stores (chunks,
+ * full-text search indexes, vector embeddings, extracted decision events, and
+ * graph relations).
+ * Original source files in `corpus/` and original enterprise communications (Slack,
+ * email, document repositories) remain completely unmodified on disk.
+ *
+ * 2. EVIDENCE CONTINUITY:
+ * ----------------------------------------------------------------------------
+ * When a person's derived records are purged, some decision topics may lose their
+ * sole supporting receipts in the assistant. Decision Blast Radius precomputes
+ * this impact deterministically so users and administrators can see which topics
+ * retain independent corroboration versus which topics lose all derived evidence.
+ *
+ * 3. SOURCE-DOCUMENT INDEPENDENCE RULE:
+ * ----------------------------------------------------------------------------
+ * To prevent false confidence, surviving evidence is counted by DISTINCT SOURCE
+ * DOCUMENTS rather than raw chunk count. Multiple overlapping chunks from the
+ * exact same source document do NOT constitute independent corroboration.
+ * ============================================================================
+ */
+
+/**
+ * Computes the Decision Blast Radius for a set of affected chunks and decision events.
+ * Evaluates evidence continuity for every affected decision topic.
+ *
+ * @param {import('better-sqlite3').Database} db
+ * @param {Array<object>} affectedChunks
+ * @param {Array<object>} affectedEvents
+ * @returns {{
+ *   topics: Array<{
+ *     topic: string,
+ *     classification: 'still_supported' | 'reduced_evidence' | 'no_derived_evidence_remaining',
+ *     receiptsRemoved: number,
+ *     independentReceiptsRemaining: number,
+ *     removedReceipts: Array<{ receiptId: string, sourceLocation: string, relativePath: string, eventType?: string, exactQuote?: string }>,
+ *     survivingReceipts: Array<{ receiptId: string, sourceLocation: string, relativePath: string, eventType?: string, exactQuote?: string }>
+ *   }>,
+ *   summary: {
+ *     totalAffectedTopics: number,
+ *     noDerivedEvidenceRemaining: number,
+ *     reducedEvidence: number,
+ *     stillSupported: number
+ *   }
+ * }}
+ */
+export function computeDecisionBlastRadius(db, affectedChunks = [], affectedEvents = []) {
+  if (!Array.isArray(affectedEvents) || affectedEvents.length === 0) {
+    return {
+      topics: [],
+      summary: {
+        totalAffectedTopics: 0,
+        noDerivedEvidenceRemaining: 0,
+        reducedEvidence: 0,
+        stillSupported: 0,
+      },
+    };
+  }
+
+  const affectedEventIdSet = new Set(affectedEvents.map((e) => e.event_id || e.id));
+  const affectedChunkIdSet = new Set(affectedChunks.map((c) => c.chunk_id || c.id));
+
+  // 1. Map unique normalized topics from the affected events collection
+  const normTopicMap = new Map();
+  for (const ev of affectedEvents) {
+    const rawTopic = ev.topic;
+    if (!rawTopic || typeof rawTopic !== 'string' || !rawTopic.trim()) continue;
+    const norm = rawTopic.trim().toLowerCase();
+    if (!normTopicMap.has(norm)) {
+      normTopicMap.set(norm, {
+        canonicalTopic: rawTopic.trim(),
+        eventCount: 0,
+      });
+    }
+    normTopicMap.get(norm).eventCount++;
+  }
+
+  if (normTopicMap.size === 0) {
+    return {
+      topics: [],
+      summary: {
+        totalAffectedTopics: 0,
+        noDerivedEvidenceRemaining: 0,
+        reducedEvidence: 0,
+        stillSupported: 0,
+      },
+    };
+  }
+
+  // 2. Fetch all decision events across the database belonging to these affected topics
+  const normalizedTopicNames = Array.from(normTopicMap.keys());
+  const placeholders = normalizedTopicNames.map(() => '?').join(',');
+
+  const allEventsForTopics = db.prepare(`
+    SELECT
+      de.id AS event_id,
+      de.chunk_id,
+      de.topic,
+      de.event_type,
+      de.exact_quote,
+      de.actor_name,
+      de.event_date,
+      c.document_id,
+      d.relative_path,
+      c.source_location
+    FROM decision_events de
+    JOIN chunks c ON de.chunk_id = c.id
+    JOIN documents d ON c.document_id = d.id
+    WHERE LOWER(TRIM(de.topic)) IN (${placeholders})
+    ORDER BY de.event_date ASC, de.id ASC
+  `).all(...normalizedTopicNames);
+
+  // Group retrieved events by normalized topic
+  const topicEventsMap = new Map();
+  for (const ev of allEventsForTopics) {
+    const norm = (ev.topic || '').trim().toLowerCase();
+    if (!topicEventsMap.has(norm)) {
+      topicEventsMap.set(norm, []);
+    }
+    topicEventsMap.get(norm).push(ev);
+  }
+
+  // 3. Evaluate each affected topic for removal count and surviving independent documents
+  const analyzedTopics = [];
+
+  for (const [norm, meta] of normTopicMap.entries()) {
+    const eventsForTopic = topicEventsMap.get(norm) || [];
+
+    // Events scheduled for deletion
+    const removedEvents = eventsForTopic.filter(
+      (e) => affectedEventIdSet.has(e.event_id) || affectedChunkIdSet.has(e.chunk_id)
+    );
+
+    // Events that will survive after deletion
+    const survivingEvents = eventsForTopic.filter(
+      (e) => !affectedEventIdSet.has(e.event_id) && !affectedChunkIdSet.has(e.chunk_id)
+    );
+
+    // Independence Rule: Group surviving events by distinct source document
+    const survivingDocMap = new Map();
+    for (const s of survivingEvents) {
+      if (!survivingDocMap.has(s.document_id)) {
+        survivingDocMap.set(s.document_id, s);
+      }
+    }
+
+    const independentReceiptsRemaining = survivingDocMap.size;
+
+    // Categorization
+    let classification = 'no_derived_evidence_remaining';
+    if (independentReceiptsRemaining >= 2) {
+      classification = 'still_supported';
+    } else if (independentReceiptsRemaining === 1) {
+      classification = 'reduced_evidence';
+    }
+
+    // Format up to 2 removed receipt references with source coordinates
+    const removedReceipts = removedEvents.slice(0, 2).map((r) => ({
+      receiptId: `event-${r.event_id}`,
+      sourceLocation: r.source_location,
+      relativePath: r.relative_path,
+      eventType: r.event_type,
+      exactQuote: r.exact_quote,
+    }));
+
+    // Format up to 2 surviving receipt references preferring distinct source documents
+    const survivingReceipts = Array.from(survivingDocMap.values())
+      .slice(0, 2)
+      .map((s) => ({
+        receiptId: `event-${s.event_id}`,
+        sourceLocation: s.source_location,
+        relativePath: s.relative_path,
+        eventType: s.event_type,
+        exactQuote: s.exact_quote,
+      }));
+
+    analyzedTopics.push({
+      topic: meta.canonicalTopic,
+      classification,
+      receiptsRemoved: removedEvents.length,
+      independentReceiptsRemaining,
+      removedReceipts,
+      survivingReceipts,
+    });
+  }
+
+  // 4. Sort topics strictly by risk priority:
+  // no_derived_evidence_remaining (1) -> reduced_evidence (2) -> still_supported (3)
+  // Tie-breaker: largest number of receipts removed descending -> alphabetical
+  const priorityOrder = {
+    no_derived_evidence_remaining: 1,
+    reduced_evidence: 2,
+    still_supported: 3,
+  };
+
+  analyzedTopics.sort((a, b) => {
+    const pDiff = priorityOrder[a.classification] - priorityOrder[b.classification];
+    if (pDiff !== 0) return pDiff;
+    const rDiff = b.receiptsRemoved - a.receiptsRemoved;
+    if (rDiff !== 0) return rDiff;
+    return a.topic.localeCompare(b.topic);
+  });
+
+  // Calculate summary counts across all affected topics
+  const summary = {
+    totalAffectedTopics: analyzedTopics.length,
+    noDerivedEvidenceRemaining: analyzedTopics.filter(
+      (t) => t.classification === 'no_derived_evidence_remaining'
+    ).length,
+    reducedEvidence: analyzedTopics.filter(
+      (t) => t.classification === 'reduced_evidence'
+    ).length,
+    stillSupported: analyzedTopics.filter(
+      (t) => t.classification === 'still_supported'
+    ).length,
+  };
+
+  return {
+    topics: analyzedTopics.slice(0, 8),
+    summary,
+  };
+}
+
+/**
  * Previews the scope and blast radius of deleting a person from all derived stores.
  * Does not mutate any data.
  *
@@ -62,7 +292,16 @@ export function normalizePersonName(personName) {
  *   affectedRelations: Array<object>,
  *   affectedEmbeddingsCount: number,
  *   affectedExtractionsCount: number,
- *   affectedDocuments: string[]
+ *   affectedDocuments: string[],
+ *   blastRadius: {
+ *     topics: Array<object>,
+ *     summary: {
+ *       totalAffectedTopics: number,
+ *       noDerivedEvidenceRemaining: number,
+ *       reducedEvidence: number,
+ *       stillSupported: number
+ *     }
+ *   }
  * }}
  */
 export function previewPersonDeletion(db, personName) {
@@ -143,6 +382,9 @@ export function previewPersonDeletion(db, personName) {
 
   const affectedDocuments = Array.from(new Set(affectedChunks.map((c) => c.relative_path)));
 
+  // 5. Calculate Decision Blast Radius on evidence topics
+  const blastRadius = computeDecisionBlastRadius(db, affectedChunks, affectedEvents);
+
   return {
     targetName: personName.trim(),
     normalizedName,
@@ -155,6 +397,7 @@ export function previewPersonDeletion(db, personName) {
     affectedEmbeddingsCount,
     affectedExtractionsCount,
     affectedDocuments,
+    blastRadius,
   };
 }
 

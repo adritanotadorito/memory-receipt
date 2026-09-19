@@ -136,7 +136,7 @@ function initCytoscape() {
           'transition-duration': '0.15s',
         },
       },
-      // 1. Decision Event Nodes (Compact Note Card)
+      // Decision event nodes
       {
         selector: 'node[nodeType = "event"]',
         style: {
@@ -155,7 +155,7 @@ function initCytoscape() {
           'text-max-width': '120px',
         },
       },
-      // 2. Source Document Nodes (Small Rectangular Paper Slip)
+      // Source document nodes
       {
         selector: 'node[nodeType = "document"]',
         style: {
@@ -174,7 +174,7 @@ function initCytoscape() {
           'text-max-width': '105px',
         },
       },
-      // 3. Person / Actor Nodes (Text-First Identity Slip with Initials)
+      // Person / Actor nodes
       {
         selector: 'node[nodeType = "person"]',
         style: {
@@ -338,7 +338,7 @@ function applyThreeColumnEvidenceLayout(cyInstance) {
 
   if (cyInstance.nodes().length === 0) return;
 
-  // 1. Sort events predictably by receipt/event ID
+  // Sort events predictably by receipt/event ID
   const sortedEvents = eventNodes.toArray().sort((a, b) => {
     return a.id().localeCompare(b.id(), undefined, { numeric: true });
   });
@@ -348,7 +348,7 @@ function applyThreeColumnEvidenceLayout(cyInstance) {
     eventIndexMap.set(ev.id(), idx);
   });
 
-  // 2. Sort documents by average connected event index to minimize crossing lines
+  // Sort documents by average connected event index to minimize crossing lines
   const sortedDocs = docNodes.toArray().sort((a, b) => {
     const connA = a.neighborhood('node[nodeType = "event"]');
     const connB = b.neighborhood('node[nodeType = "event"]');
@@ -361,7 +361,7 @@ function applyThreeColumnEvidenceLayout(cyInstance) {
     return avgA - avgB;
   });
 
-  // 3. Sort people by average connected event index to minimize crossing lines
+  // Sort people by average connected event index to minimize crossing lines
   const sortedPersons = personNodes.toArray().sort((a, b) => {
     const connA = a.neighborhood('node[nodeType = "event"]');
     const connB = b.neighborhood('node[nodeType = "event"]');
@@ -633,7 +633,7 @@ async function handleAskQuestion(question) {
     const data = body.data;
     currentCitations = Array.isArray(data.citations) ? data.citations : [];
 
-    // 1. Status Indicator (Human sentence case)
+    // Status indicator
     statusPill.className = `status-indicator ${data.status}`;
     if (data.status === 'answered') {
       statusPill.textContent = 'Supported answer';
@@ -646,10 +646,8 @@ async function handleAskQuestion(question) {
     const citCount = currentCitations.length;
     citationBadge.textContent = citCount === 1 ? '1 source' : `${citCount} sources`;
 
-    // 2. Answer Text
     answerText.textContent = data.answer || 'No answer generated.';
 
-    // 3. Reasoning Note
     if (data.reasoningNote) {
       reasoningBox.classList.remove('hidden');
       reasoningText.textContent = data.reasoningNote;
@@ -661,7 +659,7 @@ async function handleAskQuestion(question) {
     const metrics = data?.metrics || body?.metrics;
     renderDataUseMetrics(metrics);
 
-    // 4. Claims (Numbered source notes with quiet chronology annotations)
+    // Claims
     claimsList.innerHTML = '';
     const claims = Array.isArray(data.claims) ? data.claims : [];
     if (claims.length === 0) {
@@ -739,7 +737,7 @@ async function handleAskQuestion(question) {
       });
     }
 
-    // 5. Sources List (Editorial Source Notes)
+    // Sources list
     receiptsList.innerHTML = '';
     if (currentCitations.length === 0) {
       receiptsList.innerHTML = '<div class="empty-hint">No sources cited.</div>';
@@ -788,7 +786,7 @@ async function handleAskQuestion(question) {
       });
     }
 
-    // 6. Update Focused Evidence Graph
+    // Update focused evidence graph
     renderGraph(data.graph);
 
     answerContainer.classList.remove('hidden');
@@ -822,9 +820,65 @@ async function handleDeletionPreview() {
     if (!body.ok) throw new Error(body.error || 'Preview failed.');
 
     const p = body.data;
+    const br = p.blastRadius || { topics: [], summary: {} };
+    const s = br.summary || {
+      totalAffectedTopics: 0,
+      noDerivedEvidenceRemaining: 0,
+      reducedEvidence: 0,
+      stillSupported: 0,
+    };
+
+    let topicsHtml = '';
+    if (Array.isArray(br.topics) && br.topics.length > 0) {
+      topicsHtml = br.topics.map((t) => {
+        let statusLabel = 'Evidence remains';
+        if (t.classification === 'no_derived_evidence_remaining') {
+          statusLabel = 'No derived evidence remains';
+        } else if (t.classification === 'reduced_evidence') {
+          statusLabel = 'Evidence reduced';
+        }
+
+        const docWord = t.independentReceiptsRemaining === 1
+          ? 'independent source document remains'
+          : 'independent source documents remain';
+        const removedWord = t.receiptsRemoved === 1
+          ? '1 receipt removed'
+          : `${t.receiptsRemoved} receipts removed`;
+
+        const removedRows = (t.removedReceipts || []).map(
+          (r) => `<div>• <b>Removed:</b> [${escapeHtml(r.receiptId)}] ${escapeHtml(r.sourceLocation)}</div>`
+        ).join('');
+
+        const survivingRows = (t.survivingReceipts || []).length > 0
+          ? (t.survivingReceipts || []).map(
+            (surv) => `<div>• <b>Surviving:</b> [${escapeHtml(surv.receiptId)}] ${escapeHtml(surv.sourceLocation)}</div>`
+          ).join('')
+          : '<div><i>No independent surviving receipts in derived stores.</i></div>';
+
+        return `
+          <div class="blast-topic-card">
+            <div class="blast-topic-header">
+              <span class="blast-topic-name">${escapeHtml(t.topic)}</span>
+              <span class="blast-status-tag ${t.classification}">${escapeHtml(statusLabel)}</span>
+            </div>
+            <div class="blast-topic-meta">${escapeHtml(removedWord)}; ${t.independentReceiptsRemaining} ${escapeHtml(docWord)}</div>
+            <details class="blast-receipts-details">
+              <summary>Show receipts</summary>
+              <div class="blast-receipts-content">
+                ${removedRows}
+                ${survivingRows}
+              </div>
+            </details>
+          </div>
+        `;
+      }).join('');
+    } else {
+      topicsHtml = '<div class="empty-hint">No decision topics affected by this preview.</div>';
+    }
+
     previewBox.classList.remove('hidden');
     previewBox.innerHTML = `
-      <div class="deletion-heading">Deletion impact preview for "${escapeHtml(p.targetName)}"</div>
+      <div class="deletion-heading">Derived deletion impact for "${escapeHtml(p.targetName)}"</div>
       <div class="deletion-grid">
         <div>• Chunks to delete: ${p.affectedChunksCount}</div>
         <div>• Search index rows: ${p.affectedChunksCount}</div>
@@ -834,6 +888,22 @@ async function handleDeletionPreview() {
         <div>• Extraction records: ${p.affectedExtractionsCount}</div>
       </div>
       <div class="deletion-foot">Affected documents: ${escapeHtml(p.affectedDocuments.join(', ') || 'None')}</div>
+
+      <div class="blast-radius-section">
+        <div class="blast-radius-heading">Decision blast radius</div>
+        <p class="blast-radius-intro">
+          This preview shows how deleting derived data may change the evidence available to this assistant. It does not delete the original source records.
+        </p>
+        <div class="blast-summary-bar">
+          <b>${(s.totalAffectedTopics || 0).toLocaleString()}</b> affected decision topics across derived stores:
+          <span>${(s.noDerivedEvidenceRemaining || 0).toLocaleString()} with no derived evidence remaining</span> ·
+          <span>${(s.reducedEvidence || 0).toLocaleString()} with reduced evidence</span> ·
+          <span>${(s.stillSupported || 0).toLocaleString()} still supported</span>
+        </div>
+        <div class="blast-topics-list">
+          ${topicsHtml}
+        </div>
+      </div>
     `;
   } catch (err) {
     alert(`Error: ${err.message}`);

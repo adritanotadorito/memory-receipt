@@ -1,47 +1,6 @@
 /**
- * ============================================================================
- * ARCHITECTURAL CONCEPTS & DESIGN RATIONALE (BEGINNER GUIDE)
- * ============================================================================
- *
- * 1. WHY RETRIEVAL EXISTS:
- * ----------------------------------------------------------------------------
- * In enterprise systems, knowledge is dispersed across hundreds or thousands of
- * documents (transcripts, emails, reports). No human or AI model can or should
- * read the entire corpus on every question. Retrieval acts as a high-speed
- * spotlight that filters out the 99% irrelevant noise and pinpoints the exact
- * handful of text segments containing the required facts.
- *
- * 2. WHY THIS IS THE "R" IN RAG (Retrieval-Augmented Generation):
- * ----------------------------------------------------------------------------
- * Large Language Models (LLMs) have vast general reasoning ability, but they do
- * not know the private facts of your organisation (and if asked, they might
- * hallucinate plausible-sounding falsehoods).
- * RAG solves this in two distinct steps:
- *   - "R" (Retrieval): Look up verified, factual source chunks from the database.
- *   - "AG" (Augmented Generation): Pass those retrieved chunks to the LLM as
- *     grounding context so it answers strictly based on evidence.
- * This file implements the "R" foundation.
- *
- * 3. WHY KEYWORD-BASED SEARCH (SQLite FTS5 / BM25) BEFORE SEMANTIC EMBEDDINGS:
- * ----------------------------------------------------------------------------
- * Many AI architectures jump directly to vector embeddings, but lexical/keyword
- * search using SQLite FTS5 (BM25 ranking with Porter stemming) has immense
- * advantages:
- *   - Precision on Exact Identifiers: Searches for project codes, specific names
- *     (e.g., "Kwame Boateng", "Sofia Almeida"), specific terms ("UAT sign-off",
- *     "DC2 incident"), or dates match exactly without semantic distortion.
- *   - Zero External Dependencies & Speed: FTS5 runs locally in sub-millisecond
- *     time inside SQLite without needing external GPU APIs or embedding models.
- *   - Determinism: Results are explainable and reproducible.
- *
- * 4. WHY EXACT SOURCE CHUNKS MUST REMAIN ATTACHED TO EVERY SEARCH RESULT:
- * ----------------------------------------------------------------------------
- * "Memory With a Receipt" requires that no retrieved fact is an orphan. By
- * carrying the document ID, relative path, exact line numbers (e.g. lines 12-28),
- * and verbatim source text with every search hit:
- *   - Any subsequent component or human user can immediately verify the evidence.
- *   - Citations are guaranteed to match the physical ground-truth file.
- * ============================================================================
+ * Keyword search over SQLite FTS5 using BM25 ranking.
+ * Attaches exact source citations and highlighted snippets to retrieved chunks.
  */
 
 // High-frequency grammatical stop words to filter out for cleaner query token weighting
@@ -69,7 +28,6 @@ export function prepareFtsQuery(userQuery) {
     return '';
   }
 
-  // Extract alphanumeric words, splitting on whitespace, hyphens, and punctuation
   const rawTokens = userQuery
     .toLowerCase()
     .replace(/[^\w\s]/g, ' ')
@@ -81,11 +39,10 @@ export function prepareFtsQuery(userQuery) {
     return '';
   }
 
-  // Separate into significant keywords vs stop words
   const significantTokens = rawTokens.filter((t) => !STOP_WORDS.has(t));
   const queryTokens = significantTokens.length > 0 ? significantTokens : rawTokens;
 
-  // Build FTS5 expression using OR and prefix wildcards for flexible relevance matching
+  // Build FTS5 expression with prefix matching for terms of length >= 3
   const ftsClauses = [];
 
   for (const token of queryTokens) {

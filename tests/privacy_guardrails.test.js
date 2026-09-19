@@ -15,7 +15,7 @@ function setupGuardrailsTestDb() {
   const dbPath = path.join(tmpDir, 'test.db');
   const db = initDatabase(dbPath);
 
-  // 1. Seed document with multiple chunks of known lengths
+  // Seed document with multiple chunks of known lengths
   db.prepare(`
     INSERT INTO documents (id, relative_path, filename, category, imported_at, content_hash, total_lines)
     VALUES ('doc_arch', 'transcripts/01_arch.txt', '01_arch.txt', 'transcript', '2024-01-01', 'h_arch', 100)
@@ -42,7 +42,7 @@ function setupGuardrailsTestDb() {
     VALUES ('doc_arch_c0003', 'doc_arch', 2, ?, 26, 40, 'transcripts/01_arch.txt, lines 26-40', '2024-01-01')
   `).run(chunk3Text);
 
-  // 2. Seed benchmark/practice docs that MUST be excluded
+  // Seed benchmark/practice docs that MUST be excluded
   db.prepare(`
     INSERT INTO documents (id, relative_path, filename, category, imported_at, content_hash, total_lines)
     VALUES ('doc_readme', '00_README.md', '00_README.md', 'report', '2024-01-01', 'h_readme', 10)
@@ -61,7 +61,7 @@ function setupGuardrailsTestDb() {
     VALUES ('doc_practice_c0001', 'doc_practice', 0, 'Practice: What is the database architecture? Target: PostgreSQL RDS.', 1, 10, 'PRACTICE-QUESTIONS.md, lines 1-10', '2024-01-01')
   `).run();
 
-  // 3. Seed decision events
+  // Seed decision events
   const ev1 = createDecisionEvent(db, {
     chunk_id: 'doc_arch_c0001',
     event_type: 'commitment',

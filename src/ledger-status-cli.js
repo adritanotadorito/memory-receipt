@@ -3,11 +3,6 @@ import { initDatabase } from './db.js';
 
 /**
  * CLI script to display summary statistics of the Decision Ledger.
- * Prints:
- *   - Total decision events count
- *   - Total event relations count
- *   - Counts grouped by event_type
- *   - Counts grouped by verification_status
  */
 function main() {
   const dbPath = process.env.DB_PATH || 'data/memory.db';

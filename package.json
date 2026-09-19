@@ -15,7 +15,7 @@
     "delete-person": "node src/delete-person-cli.js",
     "deletion-status": "node src/deletion-status-cli.js",
     "dev": "node --env-file=.env src/server.js",
-    "start": "node --env-file=.env src/server.js",
+    "start": "node src/server.js",
     "test": "node --test tests/*.test.js"
   },
   "repository": {

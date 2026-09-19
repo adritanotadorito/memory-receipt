@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { initDatabase } from './db.js';
+import { initDatabase, ensureSeededDatabase } from './db.js';
 import { answerQuestion } from './answer.js';
 import { chatCompletion } from './llm.js';
 import {
@@ -60,7 +60,7 @@ export function buildFocusedGraph(db, answerResult) {
     const date = r.eventDate || '';
     const actor = r.actorName || '';
 
-    // 1. Event Node
+    // Event node
     if (!nodeSet.has(rid)) {
       nodeSet.add(rid);
       nodes.push({
@@ -80,7 +80,7 @@ export function buildFocusedGraph(db, answerResult) {
       });
     }
 
-    // 2. Document Node
+    // Document node
     const docPath = r.relativePath || (r.sourceLocation ? r.sourceLocation.split(',')[0] : 'document');
     const docId = `doc:${docPath}`;
     const docFilename = r.filename || path.basename(docPath);
@@ -113,7 +113,7 @@ export function buildFocusedGraph(db, answerResult) {
       });
     }
 
-    // 3. Person / Actor Node
+    // Person node
     if (actor && actor.trim()) {
       const actorId = `actor:${actor.trim().toLowerCase()}`;
       if (!nodeSet.has(actorId)) {
@@ -298,16 +298,18 @@ export function createApp(db = initDatabase(), llm = chatCompletion) {
  * Starts the HTTP server.
  */
 export function startServer() {
-  const port = process.env.PORT || 3000;
+  const port = Number(process.env.PORT) || 3000;
+  const host = '0.0.0.0';
   const dbPath = process.env.DB_PATH || 'data/memory.db';
+  ensureSeededDatabase(dbPath);
   const db = initDatabase(dbPath);
   const app = createApp(db, chatCompletion);
 
-  return app.listen(port, () => {
+  return app.listen(port, host, () => {
     console.log('\n================================================================');
-    console.log('         MEMORY WITH A RECEIPT: LOCAL DEMO WEB SERVER');
+    console.log('         MEMORY WITH A RECEIPT: PRODUCTION / DEMO SERVER');
     console.log('================================================================');
-    console.log(`🚀 Server running at: http://localhost:${port}`);
+    console.log(`🚀 Server running at: http://${host}:${port}`);
     console.log(`📁 Database:          ${dbPath}`);
     console.log(`🤖 Model:             ${process.env.OPENAI_MODEL || 'gpt-4.1-mini'}`);
     console.log('================================================================\n');

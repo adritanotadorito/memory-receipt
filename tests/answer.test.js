@@ -13,7 +13,7 @@ function setupAnswerTestDb() {
   const dbPath = path.join(tmpDir, 'test.db');
   const db = initDatabase(dbPath);
 
-  // 1. Seed transcript document
+  // Seed transcript document
   db.prepare(`
     INSERT INTO documents (id, relative_path, filename, category, imported_at, content_hash, total_lines)
     VALUES ('doc_scope', 'transcripts/02_scope.txt', '02_scope.txt', 'transcript', '2024-01-01', 'h_scope', 30)
@@ -29,7 +29,7 @@ Nadia Haddad: Understood, bakery remains out of scope until Q3.`;
     VALUES (?, 'doc_scope', 0, ?, 1, 15, 'transcripts/02_scope.txt, lines 1-15', '2024-01-01')
   `).run(chunkScopeId, chunkScopeText);
 
-  // 2. Seed email document with conflicting shelf life proposals
+  // Seed email document with conflicting shelf life proposals
   db.prepare(`
     INSERT INTO documents (id, relative_path, filename, category, imported_at, content_hash, total_lines)
     VALUES ('doc_shelf', 'emails/05_shelf_life.txt', '05_shelf_life.txt', 'email', '2024-01-01', 'h_shelf', 30)
@@ -59,7 +59,7 @@ Due to ERP schema constraints, we must map shelf_life_days to shelf_life_total i
     VALUES (?, 'doc_shelf', 1, ?, 13, 25, 'emails/05_shelf_life.txt, lines 13-25', '2024-01-01')
   `).run(chunkShelf2Id, chunkShelf2Text);
 
-  // 3. Seed benchmark files that MUST be excluded from evidence packet
+  // Seed benchmark files that MUST be excluded from evidence packet
   db.prepare(`
     INSERT INTO documents (id, relative_path, filename, category, imported_at, content_hash, total_lines)
     VALUES ('doc_readme', '00_README.md', '00_README.md', 'report', '2024-01-01', 'h_readme', 10)
@@ -80,7 +80,7 @@ Due to ERP schema constraints, we must map shelf_life_days to shelf_life_total i
     VALUES ('doc_practice_c0001', 'doc_practice', 0, 'Practice Question: What is bakery scope? Target Answer: Bakery is out of scope.', 1, 10, 'PRACTICE-QUESTIONS.md, lines 1-10', '2024-01-01')
   `).run();
 
-  // 4. Seed decision events in the ledger
+  // Seed decision events in the ledger
   const ev1 = createDecisionEvent(db, {
     chunk_id: chunkScopeId,
     event_type: 'status_claim',

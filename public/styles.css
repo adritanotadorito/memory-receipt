@@ -844,7 +844,8 @@ body {
   background: #8F372E;
 }
 
-.deletion-results, .deletion-report {
+.deletion-results,
+.deletion-report {
   background: var(--bg-desk);
   border: 1px solid var(--border-hairline);
   border-radius: var(--radius-subtle);
@@ -871,6 +872,120 @@ body {
   font-size: 11px;
   color: var(--text-muted);
   margin-top: 5px;
+}
+
+/* Decision Blast Radius (Phase 10) */
+.blast-radius-section {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border-hairline);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.blast-radius-heading {
+  font-family: var(--font-serif);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-ink);
+}
+
+.blast-radius-intro {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.blast-summary-bar {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  padding: 5px 8px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: var(--radius-subtle);
+  border: 1px solid var(--border-hairline);
+}
+
+.blast-topics-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.blast-topic-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-subtle);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.blast-topic-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.blast-topic-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-ink);
+}
+
+.blast-status-tag {
+  font-size: 10.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.blast-status-tag.no_derived_evidence_remaining {
+  color: #8C6212;
+}
+
+.blast-status-tag.reduced_evidence {
+  color: #8C6212;
+}
+
+.blast-status-tag.still_supported {
+  color: #2F6F4F;
+}
+
+.blast-topic-meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.blast-receipts-details {
+  margin-top: 3px;
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+.blast-receipts-details summary {
+  cursor: pointer;
+  user-select: none;
+  text-decoration: underline;
+}
+
+.blast-receipts-details summary:hover {
+  color: var(--text-ink);
+}
+
+.blast-receipts-content {
+  margin-top: 4px;
+  padding: 4px 6px;
+  background: var(--bg-desk);
+  border-left: 2px solid var(--border-dark);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-secondary);
 }
 
 .deletion-success-heading {

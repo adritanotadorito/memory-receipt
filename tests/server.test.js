@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
-import { initDatabase } from '../src/db.js';
+import { initDatabase, ensureSeededDatabase } from '../src/db.js';
 import { createApp, buildFocusedGraph } from '../src/server.js';
 import { createDecisionEvent } from '../src/ledger.js';
 
@@ -234,4 +234,42 @@ test('6. POST /api/deletion/confirm permanently purges data when confirmed is tr
   } finally {
     cleanupServerTestEnvironment(env);
   }
+});
+
+test('7. ensureSeededDatabase copies seed file when target database does not exist', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'seed-test-'));
+  const targetDb = path.join(tmpDir, 'data', 'memory.db');
+  const mockSeed = path.join(tmpDir, 'seed.db');
+  fs.writeFileSync(mockSeed, 'mock-sqlite-seed-data');
+
+  try {
+    const result = ensureSeededDatabase(targetDb, mockSeed);
+    assert.equal(result, true);
+    assert.equal(fs.existsSync(targetDb), true);
+    assert.equal(fs.readFileSync(targetDb, 'utf8'), 'mock-sqlite-seed-data');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('8. ensureSeededDatabase does not overwrite existing target database', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'seed-test-'));
+  const targetDb = path.join(tmpDir, 'target.db');
+  const mockSeed = path.join(tmpDir, 'seed.db');
+  fs.writeFileSync(targetDb, 'existing-runtime-data-with-deletions');
+  fs.writeFileSync(mockSeed, 'pristine-seed-data');
+
+  try {
+    const result = ensureSeededDatabase(targetDb, mockSeed);
+    assert.equal(result, false);
+    // Must remain the existing runtime content
+    assert.equal(fs.readFileSync(targetDb, 'utf8'), 'existing-runtime-data-with-deletions');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('9. ensureSeededDatabase safely ignores :memory: paths', () => {
+  const result = ensureSeededDatabase(':memory:');
+  assert.equal(result, false);
 });

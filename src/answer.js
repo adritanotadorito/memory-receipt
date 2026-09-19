@@ -115,7 +115,7 @@ export function parseAnswerResponse(rawText) {
     if (objMatch) {
       try {
         return JSON.parse(objMatch[0]);
-      } catch {}
+      } catch { }
     }
     return null;
   }
@@ -424,7 +424,7 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
         success: 0,
         error_category: errorCategory,
       });
-    } catch {}
+    } catch { }
 
     return {
       status: 'insufficient_evidence',
@@ -463,7 +463,7 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
         success: 0,
         error_category: 'validation',
       });
-    } catch {}
+    } catch { }
 
     return {
       status: 'insufficient_evidence',
@@ -564,7 +564,7 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
         success: 1,
         error_category: null,
       });
-    } catch {}
+    } catch { }
 
     if (parsed.status === 'answered') {
       return {
@@ -646,7 +646,7 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
       success: 1,
       error_category: null,
     });
-  } catch {}
+  } catch { }
 
   return {
     status: parsed.status,

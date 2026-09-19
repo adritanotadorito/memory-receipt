@@ -1,11 +1,6 @@
 /**
- * ============================================================================
- * PRIVACY-PRESERVING USAGE LEDGER & GUARDRAILS (PHASE 9)
- * ============================================================================
- *
- * Tracks LLM token expenditures and data-minimisation metrics without logging
- * user questions, prompt templates, raw source text, or API credentials.
- * ============================================================================
+ * Privacy-preserving usage ledger: tracks token expenditures and data-minimisation metrics
+ * without logging raw questions, prompts, or source text.
  */
 
 /**

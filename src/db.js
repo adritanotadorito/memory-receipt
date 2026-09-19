@@ -3,6 +3,39 @@ import path from 'node:path';
 import fs from 'node:fs';
 
 /**
+ * Ensures a runtime SQLite database is available.
+ * If the file at `dbPath` does not exist and a seed database exists at `seedPath`,
+ * copies the seed database into place.
+ *
+ * Never overwrites an existing runtime database file.
+ *
+ * @param {string} [dbPath='data/memory.db'] - Path to target runtime database.
+ * @param {string} [seedPath='seed/demo-seed.db'] - Path to prebuilt seed database.
+ * @returns {boolean} - true if seed was copied, false otherwise.
+ */
+export function ensureSeededDatabase(
+  dbPath = process.env.DB_PATH || 'data/memory.db',
+  seedPath = process.env.SEED_DB_PATH || 'seed/demo-seed.db'
+) {
+  if (!dbPath || dbPath === ':memory:') {
+    return false;
+  }
+
+  const dir = path.dirname(dbPath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+
+  if (!fs.existsSync(dbPath) && fs.existsSync(seedPath)) {
+    fs.copyFileSync(seedPath, dbPath);
+    console.log(`[db] Initialized runtime database at '${dbPath}' from seed '${seedPath}'.`);
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Initializes and returns the SQLite database connection.
  * Sets up the schema for documents, line-based chunks, and audit logs.
  *
@@ -177,7 +210,7 @@ export function initDatabase(dbPath = 'data/memory.db') {
     try {
       db.transaction(() => {
         db.exec(`
-          -- 1. Backup decision_events into temp table with CAST(chunk_id AS INTEGER)
+          -- Backup decision_events into temp table with CAST(chunk_id AS INTEGER)
           CREATE TABLE decision_events_mig_tmp (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             chunk_id INTEGER NOT NULL REFERENCES chunks(id) ON DELETE CASCADE,
@@ -202,7 +235,7 @@ export function initDatabase(dbPath = 'data/memory.db') {
             event_date, exact_quote, confidence, verification_status, created_at
           FROM decision_events;
 
-          -- 2. Backup event_relations into temp table
+          -- Backup event_relations into temp table
           CREATE TABLE event_relations_mig_tmp (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             from_event_id INTEGER NOT NULL REFERENCES decision_events(id) ON DELETE CASCADE,
@@ -218,15 +251,15 @@ export function initDatabase(dbPath = 'data/memory.db') {
           SELECT id, from_event_id, to_event_id, relation_type, explanation, created_at
           FROM event_relations;
 
-          -- 3. Drop legacy tables
+          -- Drop legacy tables
           DROP TABLE event_relations;
           DROP TABLE decision_events;
 
-          -- 4. Rename temp tables to active schema
+          -- Rename temp tables to active schema
           ALTER TABLE decision_events_mig_tmp RENAME TO decision_events;
           ALTER TABLE event_relations_mig_tmp RENAME TO event_relations;
 
-          -- 5. Recreate indexes
+          -- Recreate indexes
           CREATE INDEX IF NOT EXISTS idx_decision_events_chunk_id ON decision_events(chunk_id);
           CREATE INDEX IF NOT EXISTS idx_decision_events_topic ON decision_events(topic);
           CREATE INDEX IF NOT EXISTS idx_decision_events_event_date ON decision_events(event_date);

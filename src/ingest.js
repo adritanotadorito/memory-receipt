@@ -303,9 +303,9 @@ export function ingestCorpus(db, corpusDir = 'corpus/acme') {
       // Filter out chunks containing tombstoned person names
       const chunks = tombstoneNames.length > 0
         ? allChunks.filter((chunk) => {
-            const textLower = chunk.chunkText.toLowerCase();
-            return !tombstoneNames.some((tName) => textLower.includes(tName));
-          })
+          const textLower = chunk.chunkText.toLowerCase();
+          return !tombstoneNames.some((tName) => textLower.includes(tName));
+        })
         : allChunks;
 
       const timestamp = now();

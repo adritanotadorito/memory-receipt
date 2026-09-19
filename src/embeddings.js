@@ -1,37 +1,6 @@
 /**
- * ============================================================================
- * ARCHITECTURAL CONCEPTS & DESIGN RATIONALE (BEGINNER GUIDE)
- * ============================================================================
- *
- * 1. WHAT ARE EMBEDDINGS?
- * ----------------------------------------------------------------------------
- * An embedding is a mathematical translation of human text into a dense vector
- * (a fixed-size list of floating-point numbers, e.g., 384 numbers).
- * Unlike simple keyword search that looks for exact character matches,
- * embedding models place semantically similar concepts close together in
- * high-dimensional geometry.
- * For example, "staff tracking identifier" and "operator ID" will produce
- * vectors that point in nearly the same mathematical direction, even though they
- * share zero keywords.
- *
- * 2. WHY NORMALIZED VECTORS MAKE COSINE SIMILARITY WORK:
- * ----------------------------------------------------------------------------
- * Cosine similarity measures the angle $\theta$ between two vectors $\vec{u}$ and $\vec{v}$:
- *   $\text{Cosine Similarity} = \frac{\vec{u} \cdot \vec{v}}{\|\vec{u}\| \|\vec{v}\|}$
- *
- * Calculating vector magnitudes ($\|\vec{u}\| = \sqrt{\sum u_i^2}$) during every
- * query across thousands of stored chunks is computationally expensive.
- * However, by normalizing every embedding vector to unit length ($\|\vec{u}\| = 1$)
- * at the moment it is generated:
- *   $\text{Cosine Similarity} = \frac{\vec{u} \cdot \vec{v}}{1 \times 1} = \vec{u} \cdot \vec{v} = \sum_{i=1}^n u_i v_i$
- * The cosine similarity simplifies into a single, blazing-fast dot product!
- *
- * 3. IDENTICAL EMBEDDING PIPELINE FOR CHUNKS AND QUERIES:
- * ----------------------------------------------------------------------------
- * To ensure consistent geometric comparison, chunk texts and user search
- * queries MUST pass through the exact same tokenization, transformer model,
- * mean-pooling strategy, and L2-normalization step.
- * ============================================================================
+ * Local semantic embeddings via Xenova/all-MiniLM-L6-v2 transformer pipeline.
+ * Generates L2-normalized 384-dimensional vectors so cosine similarity reduces to dot product.
  */
 
 export const DEFAULT_MODEL_NAME = 'Xenova/all-MiniLM-L6-v2';
@@ -232,10 +201,8 @@ export async function semanticSearch(db, query, limit = 8, modelName = DEFAULT_M
     return [];
   }
 
-  // 1. Generate normalized query embedding vector
   const queryVector = await generateEmbedding(query, modelName);
 
-  // 2. Fetch all stored embeddings joined with chunks and documents
   const rows = db.prepare(`
     SELECT
       c.id AS chunk_id,
@@ -255,7 +222,7 @@ export async function semanticSearch(db, query, limit = 8, modelName = DEFAULT_M
     return [];
   }
 
-  // 3. Score every chunk using fast dot product (cosine similarity)
+  // Score chunks via dot product on normalized vectors
   const scored = rows.map((row) => {
     const chunkVector = JSON.parse(row.embedding_json);
     const similarity = dotProduct(queryVector, chunkVector);
@@ -274,7 +241,6 @@ export async function semanticSearch(db, query, limit = 8, modelName = DEFAULT_M
     };
   });
 
-  // 4. Sort descending by similarity score and take top limit
   scored.sort((a, b) => b.similarityScore - a.similarityScore);
   return scored.slice(0, limit);
 }

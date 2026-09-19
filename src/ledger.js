@@ -1,31 +1,6 @@
 /**
- * ============================================================================
- * ARCHITECTURAL CONCEPTS & DESIGN RATIONALE (PHASE 4: DECISION LEDGER)
- * ============================================================================
- *
- * 1. WHY A DECISION LEDGER WITH CITATION GROUNDING:
- * ----------------------------------------------------------------------------
- * Unstructured enterprise documents (emails, meeting transcripts, status reports)
- * record real-time shifts in project direction, commitments, reversals, and
- * disagreements.
- * Without a structured decision ledger:
- *   - AI systems can pick up outdated proposals or obsolete estimates and treat
- *     them as active ground truth.
- *   - Reversals and rejections are lost in document noise.
- * By extracting and tracking discrete decision events with explicit types,
- * verification statuses, and relations:
- *   - We can trace the chronological evolution of any topic (e.g. shelf-life field
- *     mapping, cutover dates).
- *   - Every event is strictly tethered to an exact quote inside an indexed chunk.
- *   - If an event quote is not literally present in the underlying chunk text, it
- *     is rejected immediately at the database barrier to prevent hallucinations.
- *
- * 2. CASCADE DELETION INTEGRITY:
- * ----------------------------------------------------------------------------
- * When source documents or chunks are updated or deleted, all downstream decision
- * events and their relationship edges automatically cascade-delete. This guarantees
- * no phantom or orphaned decisions survive in the ledger.
- * ============================================================================
+ * Decision ledger management: creates and queries grounded decision events and relations.
+ * Event quotes are validated against chunk text, and downstream events cascade-delete with chunks.
  */
 
 export const VALID_EVENT_TYPES = new Set([
@@ -90,7 +65,6 @@ export function createDecisionEvent(db, event) {
   const verificationStatus = event.verification_status ?? event.verificationStatus;
   const createdAt = event.created_at ?? event.createdAt ?? new Date().toISOString();
 
-  // 1. Validate mandatory fields and constraints
   if (chunkId === undefined || chunkId === null || (typeof chunkId === 'string' && chunkId.trim().length === 0)) {
     throw new Error('chunk_id must be provided as a non-empty string or integer');
   }
@@ -115,7 +89,7 @@ export function createDecisionEvent(db, event) {
     throw new Error(`Invalid verification_status: "${verificationStatus}". Must be one of: ${Array.from(VALID_VERIFICATION_STATUSES).join(', ')}`);
   }
 
-  // 2. Fetch linked chunk to verify literal quote containment
+  // Verify literal quote containment in referenced chunk
   const chunk = db.prepare(`
     SELECT c.id, c.chunk_text, c.document_id, d.relative_path
     FROM chunks c
@@ -131,7 +105,6 @@ export function createDecisionEvent(db, event) {
     throw new Error(`Grounding validation failed: exact_quote is not literally contained in chunk "${chunkId}"`);
   }
 
-  // 3. Insert decision event
   const insertStmt = db.prepare(`
     INSERT INTO decision_events (
       chunk_id, event_type, topic, value, actor_name, actor_organization,
@@ -155,7 +128,6 @@ export function createDecisionEvent(db, event) {
 
   const eventId = Number(result.lastInsertRowid);
 
-  // 4. Log to immutable audit trail
   db.prepare(`
     INSERT INTO audit_log (timestamp, action, document_id, relative_path, details)
     VALUES (?, ?, ?, ?, ?)
@@ -243,7 +215,6 @@ export function createEventRelation(db, relation) {
   const result = insertStmt.run(fromEventId, toEventId, relationType, explanation, createdAt);
   const relationId = Number(result.lastInsertRowid);
 
-  // Log to audit trail
   db.prepare(`
     INSERT INTO audit_log (timestamp, action, document_id, relative_path, details)
     VALUES (?, ?, ?, ?, ?)

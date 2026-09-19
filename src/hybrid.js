@@ -2,25 +2,8 @@ import { searchChunks } from './search.js';
 import { semanticSearch } from './embeddings.js';
 
 /**
- * ============================================================================
- * HYBRID RETRIEVAL & RECIPROCAL RANK FUSION (RRF)
- * ============================================================================
- *
- * Why Hybrid Retrieval?
- * - Keyword search (BM25) excels at precise terminology, proper nouns, dates,
- *   and specific codes (e.g., "OP_ID", "15_uat-signoff", "2024-03-20").
- * - Semantic search (Cosine Similarity) excels at conceptual paraphrases,
- *   synonyms, and intent when exact vocabulary doesn't match.
- *
- * How Reciprocal Rank Fusion (RRF) Works:
- * - Scores from BM25 (relevance score) and Vector search (cosine similarity)
- *   operate on completely different scales. Directly averaging them produces
- *   unbalanced, skewed results.
- * - RRF normalizes rank positions rather than raw scores:
- *     $RRF(d) = \sum_{m \in \{\text{keyword}, \text{semantic}\}} \frac{1}{k + \text{rank}_m(d)}$
- *   where $k = 60$ is the standard smoothing constant.
- * - Chunks retrieved near the top of both methods receive an additive boost.
- * ============================================================================
+ * Hybrid retrieval combining FTS5 keyword search and local vector semantic search.
+ * Uses Reciprocal Rank Fusion (RRF) with k=60 to merge ranking scores across disparate scales.
  */
 
 export const RRF_K_CONSTANT = 60;
@@ -55,18 +38,15 @@ export async function hybridSearch(db, query, options = {}) {
     return [];
   }
 
-  // 1. Run both searches in parallel
   const [keywordHits, semanticHits] = await Promise.all([
     Promise.resolve(searchChunks(db, query, candidateLimit)),
     semanticSearch(db, query, candidateLimit),
   ]);
 
-  // 2. Aggregate candidate chunks using Reciprocal Rank Fusion (RRF)
   const chunkMap = new Map();
 
-  // Process Keyword hits
   keywordHits.forEach((hit, index) => {
-    const rank = index + 1; // 1-indexed rank
+    const rank = index + 1;
     const rrfContribution = 1 / (RRF_K_CONSTANT + rank);
 
     chunkMap.set(hit.chunkId, {
@@ -79,9 +59,8 @@ export async function hybridSearch(db, query, options = {}) {
     });
   });
 
-  // Process Semantic hits
   semanticHits.forEach((hit, index) => {
-    const rank = index + 1; // 1-indexed rank
+    const rank = index + 1;
     const rrfContribution = 1 / (RRF_K_CONSTANT + rank);
 
     if (chunkMap.has(hit.chunkId)) {
@@ -89,7 +68,6 @@ export async function hybridSearch(db, query, options = {}) {
       existing.semanticRank = rank;
       existing.rrfScore += rrfContribution;
       existing.inSemantic = true;
-      // Prefer the FTS highlighted snippet if available
       if (!existing.snippet && hit.snippet) {
         existing.snippet = hit.snippet;
       }
@@ -105,7 +83,6 @@ export async function hybridSearch(db, query, options = {}) {
     }
   });
 
-  // 3. Convert to array and format metadata
   const candidates = Array.from(chunkMap.values());
 
   candidates.sort((a, b) => b.rrfScore - a.rrfScore);
