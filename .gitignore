@@ -4,6 +4,7 @@ data/
 *.db-journal
 *.db-wal
 *.db-shm
+!seed/memory.db
 !seed/demo-seed.db
 .DS_Store
 .env

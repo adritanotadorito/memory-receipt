@@ -4,7 +4,7 @@ import fs from 'node:fs';
 
 export function ensureSeededDatabase(
   dbPath = process.env.DB_PATH || 'data/memory.db',
-  seedPath = process.env.SEED_DB_PATH || 'seed/demo-seed.db'
+  seedPath = process.env.SEED_DB_PATH || (fs.existsSync('seed/memory.db') ? 'seed/memory.db' : 'seed/demo-seed.db')
 ) {
   if (!dbPath || dbPath === ':memory:') {
     return false;

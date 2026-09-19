@@ -1,14 +1,16 @@
 :root {
-  --bg-desk: #F4F1EA;
-  --bg-surface: #FAF8F5;
+  --bg-desk: #F5F1E8;
+  --bg-surface: #FAF7F0;
   --bg-canvas: #EBE6DC;
-  --text-ink: #22211F;
+  --text-ink: #24211E;
   --text-secondary: #4A463F;
   --text-muted: #706B63;
   --border-hairline: #D8D2C7;
   --border-dark: #A69F94;
-  --accent-oxblood: #A8453C;
-  --accent-oxblood-subtle: rgba(168, 69, 60, 0.06);
+  --accent-oxblood: #A8483C;
+  --accent-oxblood-subtle: rgba(168, 72, 60, 0.06);
+  --heading-maroon: #6E2424;
+  --heading-maroon-dark: #562020;
 
   --font-serif: 'Newsreader', Georgia, 'Times New Roman', serif;
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -65,7 +67,7 @@ body {
   font-size: 22px;
   font-weight: 500;
   letter-spacing: -0.01em;
-  color: var(--text-ink);
+  color: var(--heading-maroon);
 }
 
 .header-subtitle {
@@ -123,7 +125,7 @@ body {
   font-family: var(--font-serif);
   font-size: 15px;
   font-weight: 500;
-  color: var(--text-ink);
+  color: var(--heading-maroon-dark);
 }
 
 .panel-hint {
@@ -178,7 +180,7 @@ body {
   font-family: var(--font-serif);
   font-size: 15px;
   font-weight: 500;
-  color: var(--text-ink);
+  color: var(--heading-maroon-dark);
   margin-bottom: 4px;
 }
 
@@ -195,7 +197,7 @@ body {
   bottom: 10px;
   left: 12px;
   right: 12px;
-  background: rgba(244, 241, 234, 0.96);
+  background: rgba(245, 241, 232, 0.96);
   border: 1px solid var(--border-hairline);
   border-left: 3px solid var(--accent-oxblood);
   border-radius: var(--radius-subtle);
@@ -334,9 +336,9 @@ body {
 }
 
 .btn-ask {
-  background: #22211F;
-  color: #FAF8F5;
-  border: 1px solid #22211F;
+  background: var(--heading-maroon-dark);
+  color: #FAF7F0;
+  border: 1px solid var(--heading-maroon-dark);
   border-radius: var(--radius-subtle);
   padding: 4px 14px;
   font-size: 12.5px;
@@ -349,7 +351,7 @@ body {
 }
 
 .btn-ask:hover {
-  background: #383633;
+  background: var(--heading-maroon);
 }
 
 .btn-ask:disabled {
@@ -435,7 +437,7 @@ body {
   font-family: var(--font-serif);
   font-size: 16px;
   font-weight: 500;
-  color: var(--text-ink);
+  color: var(--heading-maroon-dark);
   margin-bottom: 8px;
 }
 
@@ -769,7 +771,7 @@ body {
 .deletion-summary-title {
   font-size: 12.5px;
   font-weight: 500;
-  color: var(--accent-oxblood);
+  color: var(--heading-maroon-dark);
 }
 
 .deletion-meta-tag {
@@ -800,7 +802,7 @@ body {
 
 .deletion-input {
   flex: 1;
-  background: #fff;
+  background: var(--bg-surface);
   border: 1px solid var(--border-dark);
   border-radius: var(--radius-subtle);
   padding: 6px 10px;
@@ -855,7 +857,7 @@ body {
 
 .deletion-heading {
   font-weight: 600;
-  color: var(--accent-oxblood);
+  color: var(--heading-maroon-dark);
   font-size: 11.5px;
   margin-bottom: 5px;
 }
@@ -888,7 +890,7 @@ body {
   font-family: var(--font-serif);
   font-size: 13.5px;
   font-weight: 600;
-  color: var(--text-ink);
+  color: var(--heading-maroon-dark);
 }
 
 .blast-radius-intro {
