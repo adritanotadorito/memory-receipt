@@ -22,7 +22,6 @@ test('generateEmbedding produces a normalized 384-dimensional vector', async () 
   assert.ok(Array.isArray(vector));
   assert.equal(vector.length, 384);
 
-  // Verify L2 normalization: sum of squares ≈ 1.0
   const normSq = vector.reduce((sum, val) => sum + val * val, 0);
   assert.ok(Math.abs(normSq - 1.0) < 0.01, `Expected norm ~1.0, got ${normSq}`);
 });
@@ -33,7 +32,7 @@ test('every indexed chunk gets exactly one embedding and rerunning creates no du
   const db = initDatabase(dbPath);
 
   try {
-    // Ingest a small mock corpus
+
     const corpusDir = path.join(tmpDir, 'corpus', 'acme', 'transcripts');
     fs.mkdirSync(corpusDir, { recursive: true });
     fs.writeFileSync(path.join(corpusDir, '01_test.txt'), 'Meeting discussing warehouse shelf life parameters and delivery dates.\n'.repeat(40));
@@ -43,7 +42,6 @@ test('every indexed chunk gets exactly one embedding and rerunning creates no du
     const chunkCount = db.prepare('SELECT COUNT(*) as count FROM chunks').get().count;
     assert.ok(chunkCount > 0);
 
-    // First embedding run
     const run1 = await embedCorpusChunks(db, { batchSize: 16 });
     assert.equal(run1.newEmbeddedCount, chunkCount);
     assert.equal(run1.skippedCount, 0);
@@ -51,7 +49,6 @@ test('every indexed chunk gets exactly one embedding and rerunning creates no du
     const embedCount1 = db.prepare('SELECT COUNT(*) as count FROM chunk_embeddings').get().count;
     assert.equal(embedCount1, chunkCount);
 
-    // Second embedding run (Idempotency check)
     const run2 = await embedCorpusChunks(db, { batchSize: 16 });
     assert.equal(run2.newEmbeddedCount, 0);
     assert.equal(run2.skippedCount, chunkCount);
@@ -73,7 +70,6 @@ test('semantic search retrieves relevant results with complete citation metadata
     const corpusDir = path.join(tmpDir, 'corpus', 'acme', 'emails');
     fs.mkdirSync(corpusDir, { recursive: true });
 
-    // Document about removing employee identifiers
     const opIdContent = [
       'Subject: OP_ID field - exclusion from fresh feed',
       'The waste write-off extract currently includes OP_ID, a six digit operator identifier identifying the staff member who scanned the item.',
@@ -82,7 +78,6 @@ test('semantic search retrieves relevant results with complete citation metadata
     ].join('\n') + '\n';
     fs.writeFileSync(path.join(corpusDir, '07_op-id-field-exclusion.txt'), opIdContent);
 
-    // Unrelated document
     const bakeryContent = [
       'Subject: Bakery equipment maintenance',
       'Bakery equipment procurement and oven temperature maintenance schedules for all regional stores.',
@@ -93,14 +88,12 @@ test('semantic search retrieves relevant results with complete citation metadata
     ingestCorpus(db, path.join(tmpDir, 'corpus', 'acme'));
     await embedCorpusChunks(db);
 
-    // Query uses semantic paraphrase ("staff scanning badge numbers in waste log" without exact keywords)
     const results = await semanticSearch(db, 'staff scanning badge numbers in waste log', 5);
 
     assert.ok(results.length > 0);
     assert.equal(results[0].filename, '07_op-id-field-exclusion.txt');
     assert.ok(results[0].similarityScore > 0.2);
 
-    // Verify citation structure
     assert.ok(results[0].chunkId);
     assert.ok(results[0].documentId);
     assert.ok(results[0].relativePath);

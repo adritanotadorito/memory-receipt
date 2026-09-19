@@ -2,13 +2,6 @@
 import { initDatabase } from './db.js';
 import { answerQuestion } from './answer.js';
 
-/**
- * CLI script to query the Memory With a Receipt evidence-grounded answer engine.
- *
- * Usage:
- *   node --env-file=.env src/answer-cli.js "What is the current decision on bakery scope?"
- *   npm run ask -- "What is the current decision on bakery scope?"
- */
 async function main() {
   const args = process.argv.slice(2);
   const question = args.join(' ').trim();

@@ -1,29 +1,7 @@
-/**
- * OpenAI Chat Completions client with request timeouts and structured error handling.
- */
-
 export const OPENAI_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
 export const DEFAULT_TIMEOUT_MS = 60000;
 export const DEFAULT_FALLBACK_MODEL = 'gpt-4.1-mini';
 
-/**
- * Sends a chat completion request to the OpenAI API.
- *
- * @param {Array<{ role: 'system' | 'user' | 'assistant', content: string }>} messages
- * @param {object} [options]
- * @param {string} [options.model] - Override model name
- * @param {number} [options.temperature] - Sampling temperature (e.g. 0.0 for deterministic output)
- * @param {number} [options.max_tokens] - Max tokens to generate (or maxTokens)
- * @param {number} [options.maxTokens]
- * @param {object} [options.response_format] - Structured output format (or responseFormat)
- * @param {object} [options.responseFormat]
- * @param {number} [options.timeoutMs=60000] - Request timeout in milliseconds
- * @returns {Promise<{
- *   text: string,
- *   usage: { prompt_tokens: number, completion_tokens: number, total_tokens: number },
- *   model: string
- * }>}
- */
 export async function chatCompletion(messages, options = {}) {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
 
@@ -84,7 +62,6 @@ export async function chatCompletion(messages, options = {}) {
     clearTimeout(timer);
   }
 
-  // Handle non-2xx responses without leaking credentials or request payloads
   if (!response.ok) {
     let errorDetails = '';
     try {

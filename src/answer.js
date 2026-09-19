@@ -5,12 +5,8 @@ import { logLlmUsage } from './usage.js';
 export const VALID_STATUSES = new Set(['answered', 'conflicting_evidence', 'insufficient_evidence']);
 export const VALID_CURRENCIES = new Set(['current', 'historical', 'uncertain']);
 
-// Excluded meta/benchmark files that must never enter the evidence packet
 const EXCLUDED_FILENAMES = new Set(['00_README.md', 'PRACTICE-QUESTIONS.md']);
 
-/**
- * Strict JSON Schema definition for evidence-grounded Q&A with verified receipt selection.
- */
 export const ANSWER_RESPONSE_FORMAT = {
   type: 'json_schema',
   json_schema: {
@@ -90,12 +86,6 @@ STRICT GROUNDING & RECEIPT RULES:
 5. Strict JSON Schema:
    - Output MUST adhere strictly to the JSON schema. Do not output markdown fences or conversational preambles.`;
 
-/**
- * Safely parses the model response text into an answer object.
- *
- * @param {string} rawText
- * @returns {object|null}
- */
 export function parseAnswerResponse(rawText) {
   if (!rawText || typeof rawText !== 'string') {
     return null;
@@ -121,68 +111,11 @@ export function parseAnswerResponse(rawText) {
   }
 }
 
-/**
- * Answers a natural-language question grounded in retrieved chunks and verified decision ledger receipts.
- * Enforces data-minimisation character boundaries and logs honest token expenditure metrics.
- *
- * @param {import('better-sqlite3').Database} db
- * @param {string} question
- * @param {Function} [llm=chatCompletion]
- * @param {object} [options]
- * @param {number} [options.limit] - Max candidate chunks to retrieve locally (overrides MAX_RETRIEVED_CHUNKS)
- * @param {number} [options.maxRetrievedChunks=8]
- * @param {number} [options.maxEvidenceChars=12000]
- * @param {number} [options.maxCompletionTokens=700]
- * @param {string} [options.model]
- * @returns {Promise<{
- *   status: 'answered' | 'conflicting_evidence' | 'insufficient_evidence',
- *   answer: string,
- *   claims: Array<{
- *     text: string,
- *     receipt_ids: string[],
- *     evidence_ids: string[],
- *     evidence_quote: string,
- *     evidence_quotes: string[],
- *     receipts: Array<object>,
- *     currency: string
- *   }>,
- *   reasoningNote: string | null,
- *   citations: Array<{
- *     citationNumber: number,
- *     receiptId: string,
- *     eventId: number,
- *     chunkId: string,
- *     sourceLocation: string,
- *     relativePath: string,
- *     startLine: number,
- *     endLine: number,
- *     category: string,
- *     exactQuote: string,
- *     eventType: string,
- *     topic: string,
- *     value: string | null,
- *     eventDate: string | null,
- *     actorName: string | null
- *   }>,
- *   events: Array<object>,
- *   receipts: Array<object>,
- *   retrieval: Array<object>,
- *   metrics: {
- *     retrievedChunkCount: number,
- *     includedChunkCount: number,
- *     evidenceCharCount: number,
- *     promptTokens: number,
- *     completionTokens: number,
- *     totalTokens: number
- *   }
- * }>}
- */
 export async function answerQuestion(db, question, llm = chatCompletion, options = {}) {
   if (!question || typeof question !== 'string' || !question.trim()) {
     throw new Error('question must be a non-empty string');
   }
 
-  // 1. Configurable data-minimisation & token limits
   const maxRetrievedChunks = Number(
     options.limit ?? options.maxRetrievedChunks ?? process.env.MAX_RETRIEVED_CHUNKS ?? 8
   );
@@ -193,10 +126,8 @@ export async function answerQuestion(db, question, llm = chatCompletion, options
     options.max_tokens ?? options.maxTokens ?? options.maxCompletionTokens ?? process.env.MAX_COMPLETION_TOKENS ?? 700
   );
 
-  // 2. Run hybrid search to retrieve candidate chunks locally
   const rawHits = await hybridSearch(db, question.trim(), { limit: maxRetrievedChunks + 4 });
 
-  // Filter out any excluded specification files
   const filteredHits = rawHits.filter((h) => {
     const filename = h.filename || '';
     const relPath = h.relativePath || '';
@@ -231,7 +162,6 @@ export async function answerQuestion(db, question, llm = chatCompletion, options
     };
   }
 
-  // 3. Fetch candidate chunk details from SQLite
   const candidateChunkIds = filteredHits.map((h) => h.chunkId);
   const candidatePlaceholders = candidateChunkIds.map(() => '?').join(',');
 
@@ -244,10 +174,6 @@ export async function answerQuestion(db, question, llm = chatCompletion, options
 
   const chunkDetailMap = new Map(chunkRows.map((r) => [r.id, r]));
 
-  // 4. Evidence Packing Rule:
-  // - Add whole chunks in rank order while they fit within MAX_EVIDENCE_CHARS.
-  // - If the first chunk alone exceeds the limit, include that one whole chunk.
-  // - Never split or mutate chunk text (preserves literal citation integrity).
   const includedHits = [];
   let cumulativeChunkChars = 0;
 
@@ -258,14 +184,14 @@ export async function answerQuestion(db, question, llm = chatCompletion, options
     const textLength = chunkText.length;
 
     if (includedHits.length === 0) {
-      // Always include the highest-ranked chunk
+
       includedHits.push(hit);
       cumulativeChunkChars += textLength;
     } else if (cumulativeChunkChars + textLength <= maxEvidenceChars) {
       includedHits.push(hit);
       cumulativeChunkChars += textLength;
     } else {
-      // Stop adding chunks to respect MAX_EVIDENCE_CHARS without breaking boundaries
+
       break;
     }
   }
@@ -274,7 +200,6 @@ export async function answerQuestion(db, question, llm = chatCompletion, options
   const includedChunkIds = includedHits.map((h) => h.chunkId);
   const includedPlaceholders = includedChunkIds.map(() => '?').join(',');
 
-  // 5. Fetch linked decision events for the included chunks only
   const eventRows = includedChunkIds.length > 0
     ? db.prepare(`
         SELECT
@@ -304,7 +229,6 @@ export async function answerQuestion(db, question, llm = chatCompletion, options
       `).all(...includedChunkIds)
     : [];
 
-  // 6. Construct verified decision receipts collection from ledger events
   const allReceipts = [];
   const receiptMap = new Map();
 
@@ -338,7 +262,6 @@ export async function answerQuestion(db, question, llm = chatCompletion, options
     receiptMap.set(`event_${ev.id}`, receipt);
   }
 
-  // Build the formatted prompt source text
   let receiptsFormatted = '';
   if (allReceipts.length > 0) {
     receiptsFormatted = allReceipts.map((r) => {
@@ -365,7 +288,6 @@ ${text}
 """`;
   }).join('\n\n---\n\n');
 
-  // Exact source-content character count supplied to the model
   const evidenceCharCount = receiptsFormatted.length + chunksFormatted.length;
 
   const userPrompt = `Question: "${question.trim()}"
@@ -378,7 +300,6 @@ ${chunksFormatted}
 
 Analyze the verified decision receipts above and synthesize a strictly grounded, concise answer matching the requested JSON schema. Every claim MUST cite one or more valid Receipt IDs (e.g. ["event-123"]).`;
 
-  // 7. Request answer from LLM with token bounding and usage logging
   let response;
   let promptTokens = 0;
   let completionTokens = 0;
@@ -448,7 +369,6 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
 
   const parsed = parseAnswerResponse(response.text);
 
-  // 8. Code validation of the model response
   if (!parsed || !VALID_STATUSES.has(parsed.status) || typeof parsed.answer !== 'string') {
     try {
       logLlmUsage(db, {
@@ -523,13 +443,11 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
       resolvedReceipts.push(matchedReceipt);
     }
 
-    // If a claim has an invalid receipt ID, drop this claim and continue with others
     if (claimHasInvalidReceipt || resolvedReceipts.length === 0) {
       droppedClaimsCount++;
       continue;
     }
 
-    // Code-owned verified receipt quotes
     const verifiedQuotes = resolvedReceipts.map((r) => r.exactQuote);
     const verifiedReceiptIds = resolvedReceipts.map((r) => r.receiptId);
 
@@ -548,9 +466,8 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
     });
   }
 
-  // Fall back only when no supported valid claims remain
   if (validatedClaims.length === 0) {
-    // Log answer attempt (successful synthesis request, but zero valid claims)
+
     try {
       logLlmUsage(db, {
         operation: 'answer',
@@ -609,7 +526,6 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
     };
   }
 
-  // 9. Build resolved, verified physical citations from cited receipts
   const uniqueReceiptIds = Array.from(citedReceiptSet);
   const citations = uniqueReceiptIds.map((rid, idx) => {
     const r = receiptMap.get(rid.toLowerCase());
@@ -632,7 +548,6 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
     };
   });
 
-  // Log successful answer generation with token expenditures
   try {
     logLlmUsage(db, {
       operation: 'answer',
@@ -667,4 +582,3 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
     },
   };
 }
-

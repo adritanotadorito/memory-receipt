@@ -13,7 +13,6 @@ function setupServerTestEnvironment() {
   const dbPath = path.join(tmpDir, 'test.db');
   const db = initDatabase(dbPath);
 
-  // Seed document
   db.prepare(`
     INSERT INTO documents (id, relative_path, filename, category, imported_at, content_hash, total_lines)
     VALUES ('doc_scope', 'transcripts/02_scope.txt', '02_scope.txt', 'transcript', '2024-01-01', 'h_scope', 30)
@@ -29,7 +28,6 @@ Nadia Haddad: Understood, bakery remains out of scope until Q3.`;
     VALUES (?, 'doc_scope', 0, ?, 1, 15, 'transcripts/02_scope.txt, lines 1-15', '2024-01-01')
   `).run(chunkScopeId, chunkScopeText);
 
-  // Seed decision event
   const ev1 = createDecisionEvent(db, {
     chunk_id: chunkScopeId,
     event_type: 'status_claim',
@@ -42,7 +40,6 @@ Nadia Haddad: Understood, bakery remains out of scope until Q3.`;
     verification_status: 'candidate',
   });
 
-  // Mock LLM function
   const mockLlm = async () => ({
     text: JSON.stringify({
       status: 'answered',
@@ -120,7 +117,6 @@ test('2. POST /api/ask returns grounded answer, receipts, and focused Cytoscape 
     assert.equal(data.claims[0].evidence_quote, 'Bakery is out of scope for Phase 1.');
     assert.equal(data.citations.length, 1);
 
-    // Verify Cytoscape graph payload
     assert.ok(data.graph, 'Graph payload must be generated');
     assert.ok(Array.isArray(data.graph.nodes));
     assert.ok(Array.isArray(data.graph.edges));
@@ -135,7 +131,6 @@ test('2. POST /api/ask returns grounded answer, receipts, and focused Cytoscape 
     const docNode = data.graph.nodes.find((n) => n.data.nodeType === 'document');
     assert.ok(docNode);
 
-    // Verify Data Use metrics in POST /api/ask response
     assert.ok(data.metrics, 'data.metrics must be returned');
     assert.ok(Number.isFinite(data.metrics.retrievedChunkCount), 'retrievedChunkCount must be finite number');
     assert.ok(Number.isFinite(data.metrics.includedChunkCount), 'includedChunkCount must be finite number');
@@ -181,7 +176,6 @@ test('4. POST /api/deletion/preview returns affected counts without modifying da
     assert.equal(body.data.targetName, 'Ana Duarte');
     assert.equal(body.data.affectedChunksCount, 1);
 
-    // Verify chunk still exists in database
     const count = env.db.prepare('SELECT COUNT(*) as count FROM chunks').get().count;
     assert.equal(count, 1);
   } finally {
@@ -192,7 +186,7 @@ test('4. POST /api/deletion/preview returns affected counts without modifying da
 test('5. POST /api/deletion/confirm requires confirmed: true protection flag', async () => {
   const env = setupServerTestEnvironment();
   try {
-    // Attempt deletion without confirmed: true
+
     const res = await fetch(`${env.baseUrl}/api/deletion/confirm`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -204,7 +198,6 @@ test('5. POST /api/deletion/confirm requires confirmed: true protection flag', a
     assert.equal(body.ok, false);
     assert.ok(body.error.includes('explicit confirmation'));
 
-    // Data must remain untouched
     const count = env.db.prepare('SELECT COUNT(*) as count FROM chunks').get().count;
     assert.equal(count, 1);
   } finally {
@@ -228,7 +221,6 @@ test('6. POST /api/deletion/confirm permanently purges data when confirmed is tr
     assert.equal(body.data.verification.verified, true);
     assert.equal(body.data.verification.remainingChunks, 0);
 
-    // Chunks table must now be empty
     const count = env.db.prepare('SELECT COUNT(*) as count FROM chunks').get().count;
     assert.equal(count, 0);
   } finally {
@@ -262,7 +254,7 @@ test('8. ensureSeededDatabase does not overwrite existing target database', () =
   try {
     const result = ensureSeededDatabase(targetDb, mockSeed);
     assert.equal(result, false);
-    // Must remain the existing runtime content
+
     assert.equal(fs.readFileSync(targetDb, 'utf8'), 'existing-runtime-data-with-deletions');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });

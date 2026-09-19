@@ -1,10 +1,6 @@
 #!/usr/bin/env node
 import { chatCompletion, OPENAI_ENDPOINT } from './llm.js';
 
-/**
- * Health check CLI script for OpenAI Chat Completions API.
- * Sends a minimal prompt and verifies connectivity, latency, and response format.
- */
 async function main() {
   console.log('\n========================================');
   console.log('       OPENAI LLM HEALTH CHECK');

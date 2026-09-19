@@ -3,9 +3,6 @@ import { createDecisionEvent, VALID_EVENT_TYPES } from './ledger.js';
 
 export const EXTRACTOR_VERSION = 'v1.1';
 
-/**
- * Strict JSON Schema definition for OpenAI Structured Outputs.
- */
 export const EXTRACTION_RESPONSE_FORMAT = {
   type: 'json_schema',
   json_schema: {
@@ -82,9 +79,6 @@ export const EXTRACTION_RESPONSE_FORMAT = {
   },
 };
 
-/**
- * System prompt instructing the LLM to extract decision-relevant events.
- */
 export const SYSTEM_PROMPT = `You are an evidence-first decision extraction engine for enterprise memory.
 Your job is to extract explicit, verifiable decision-relevant events from the provided text snippet.
 
@@ -108,13 +102,6 @@ STRICT EXTRACTION RULES:
 5. "confidence" must be a float between 0.0 and 1.0.
 6. If there are no qualifying decision events in the text, return {"events": []}.`;
 
-/**
- * Safely parses JSON string output from the LLM, handling structured output root objects
- * and markdown code fences if present.
- *
- * @param {string} rawText
- * @returns {Array<object>}
- */
 export function parseModelJson(rawText) {
   if (!rawText || typeof rawText !== 'string') {
     return [];
@@ -135,7 +122,7 @@ export function parseModelJson(rawText) {
     }
     return [];
   } catch {
-    // Attempt regex extraction for JSON object or array if surrounded by text
+
     const objectMatch = cleaned.match(/\{[\s\S]*"events"\s*:\s*\[[\s\S]*\][\s\S]*\}/);
     if (objectMatch) {
       try {
@@ -154,27 +141,6 @@ export function parseModelJson(rawText) {
   }
 }
 
-/**
- * Extracts decision events from a single chunk and inserts them into the decision ledger.
- *
- * @param {import('better-sqlite3').Database} db
- * @param {object} chunk - Chunk record from SQLite
- * @param {Function} [llm=chatCompletion] - LLM caller function
- * @param {object} [options]
- * @param {string} [options.model]
- * @param {boolean} [options.skipIfExtracted=true]
- * @param {boolean} [options.force=false]
- * @returns {Promise<{
- *   chunkId: string|number,
- *   skipped: boolean,
- *   inserted: Array<object>,
- *   duplicatesCount: number,
- *   rejectedQuotesCount: number,
- *   missingTopicCount: number,
- *   invalidSchemaCount: number,
- *   error: string|null
- * }>}
- */
 export async function extractEventsFromChunk(db, chunk, llm = chatCompletion, options = {}) {
   let targetDb = db;
   let targetChunk = chunk;
@@ -195,7 +161,6 @@ export async function extractEventsFromChunk(db, chunk, llm = chatCompletion, op
   const force = targetOptions.force === true;
   const skipIfExtracted = !force && targetOptions.skipIfExtracted !== false;
 
-  // 1. Check if chunk was already extracted (unless force is true)
   if (skipIfExtracted && targetDb) {
     const existing = targetDb.prepare('SELECT chunk_id FROM chunk_extractions WHERE chunk_id = ?').get(targetChunk.id);
     if (existing) {
@@ -260,7 +225,6 @@ Extract all explicit decision events matching the requested JSON schema. If none
       continue;
     }
 
-    // Defensive alias mapping
     const eventType = rawEvent.event_type || rawEvent.eventType || rawEvent.type;
     const actorName = (rawEvent.actor_name !== undefined && rawEvent.actor_name !== null && String(rawEvent.actor_name).trim() !== '')
       ? rawEvent.actor_name
@@ -278,13 +242,11 @@ Extract all explicit decision events matching the requested JSON schema. If none
       ? Math.min(1.0, Math.max(0.0, rawEvent.confidence))
       : 0.85;
 
-    // Validate enum
     if (!eventType || !VALID_EVENT_TYPES.has(eventType)) {
       invalidSchemaCount++;
       continue;
     }
 
-    // Explicit check for missing topic - never invent topics in code
     if (!topic || typeof topic !== 'string' || !topic.trim()) {
       missingTopicCount++;
       continue;
@@ -295,7 +257,6 @@ Extract all explicit decision events matching the requested JSON schema. If none
       continue;
     }
 
-    // In-memory deduplication within the same chunk
     const sig = `${eventType}::${topic.trim().toLowerCase()}::${exactQuote.trim()}`;
     if (seenSignatures.has(sig)) {
       duplicatesCount++;
@@ -303,7 +264,6 @@ Extract all explicit decision events matching the requested JSON schema. If none
     }
     seenSignatures.add(sig);
 
-    // Database deduplication (crucial for --force so rerun doesn't duplicate existing events)
     if (targetDb) {
       const existingInDb = targetDb.prepare(`
         SELECT id FROM decision_events
@@ -316,13 +276,11 @@ Extract all explicit decision events matching the requested JSON schema. If none
       }
     }
 
-    // Literal quote verification against chunk text
     if (!targetChunk.chunk_text.includes(exactQuote)) {
       rejectedQuotesCount++;
       continue;
     }
 
-    // Insert via createDecisionEvent
     if (targetDb) {
       try {
         const createdEvent = createDecisionEvent(targetDb, {
@@ -346,7 +304,7 @@ Extract all explicit decision events matching the requested JSON schema. If none
         }
       }
     } else {
-      // In-memory / dry-run candidate record
+
       inserted.push({
         chunk_id: targetChunk.id,
         event_type: eventType,
@@ -362,7 +320,6 @@ Extract all explicit decision events matching the requested JSON schema. If none
     }
   }
 
-  // 4. Record extraction completion in chunk_extractions table
   if (targetDb) {
     const modelName = response.model || targetOptions.model || process.env.OPENAI_MODEL || 'gpt-4.1-mini';
     targetDb.prepare(`
@@ -390,30 +347,6 @@ Extract all explicit decision events matching the requested JSON schema. If none
   };
 }
 
-/**
- * Processes chunks across the database using bounded concurrency.
- *
- * @param {import('better-sqlite3').Database} db
- * @param {object} [options]
- * @param {Function} [options.llm=chatCompletion]
- * @param {number} [options.limit]
- * @param {boolean} [options.resume=true]
- * @param {boolean} [options.force=false]
- * @param {number} [options.concurrency=2]
- * @param {Function} [options.onProgress]
- * @returns {Promise<{
- *   totalChunks: number,
- *   processedChunks: number,
- *   skippedChunks: number,
- *   candidateEventsInserted: number,
- *   duplicatesSkipped: number,
- *   invalidQuotesRejected: number,
- *   missingTopicsRejected: number,
- *   invalidSchemaRejected: number,
- *   errors: Array<{ chunkId: string|number, error: string }>,
- *   elapsedMs: number
- * }>}
- */
 export async function extractAllChunks(db, options = {}) {
   const llm = options.llm || chatCompletion;
   const limit = typeof options.limit === 'number' && options.limit > 0 ? options.limit : null;
@@ -424,7 +357,6 @@ export async function extractAllChunks(db, options = {}) {
 
   const startTime = Date.now();
 
-  // Query chunks needing extraction
   let query = `
     SELECT
       c.id, c.document_id, c.chunk_index, c.chunk_text,
@@ -455,7 +387,6 @@ export async function extractAllChunks(db, options = {}) {
   let invalidSchemaRejected = 0;
   const errors = [];
 
-  // Bounded concurrency pool
   let currentIndex = 0;
 
   async function worker() {

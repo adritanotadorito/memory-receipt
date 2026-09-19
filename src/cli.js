@@ -3,11 +3,6 @@
 import { initDatabase } from './db.js';
 import { ingestCorpus } from './ingest.js';
 
-/**
- * Main CLI execution function for `npm run ingest`.
- * Connects to SQLite, executes the idempotent ingestion workflow,
- * and prints a clean summary of documents, chunks, exclusions, and errors.
- */
 function main() {
   console.log('===============================================================');
   console.log('  Memory With a Receipt — Phase 1 Corpus Ingestion');

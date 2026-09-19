@@ -38,7 +38,6 @@ test('scanCorpus discovers exactly 45 txt documents and excludes specification m
   assert.equal(categories.report, 2);
   assert.equal(categories.transcript, 23);
 
-  // Verify excluded files contain 00_README.md and PRACTICE-QUESTIONS.md
   assert.ok(excludedFiles.some((f) => f.includes('00_README.md')));
   assert.ok(excludedFiles.some((f) => f.includes('PRACTICE-QUESTIONS.md')));
 });
@@ -54,10 +53,6 @@ test('createLineBasedChunks generates exact line ranges, citations, and preserve
 
   const chunks = createLineBasedChunks(rawText, relativePath, docId, 30, 10);
 
-  // 65 lines with chunkSize=30, overlap=10 (step=20):
-  // Chunk 0: lines 1-30
-  // Chunk 1: lines 21-50
-  // Chunk 2: lines 41-65
   assert.equal(chunks.length, 3);
 
   assert.equal(chunks[0].startLine, 1);
@@ -83,7 +78,7 @@ test('ingestCorpus is strictly idempotent and tracks audit logs', () => {
   const db = initDatabase(dbPath);
 
   try {
-    // Run 1: Initial ingestion
+
     const run1 = ingestCorpus(db, 'corpus/acme');
     assert.equal(run1.totalIndexedDocs, 45);
     assert.equal(run1.newDocsCount, 45);
@@ -94,11 +89,9 @@ test('ingestCorpus is strictly idempotent and tracks audit logs', () => {
     const initialTotalChunks = run1.totalChunks;
     assert.ok(initialTotalChunks > 0);
 
-    // Verify audit logs were written
     const auditCount1 = db.prepare('SELECT COUNT(*) as count FROM audit_log WHERE action = ?').get('INGEST');
     assert.equal(auditCount1.count, 45);
 
-    // Run 2: Second identical ingestion (idempotency test)
     const run2 = ingestCorpus(db, 'corpus/acme');
     assert.equal(run2.totalIndexedDocs, 45);
     assert.equal(run2.totalChunks, initialTotalChunks);
@@ -107,7 +100,6 @@ test('ingestCorpus is strictly idempotent and tracks audit logs', () => {
     assert.equal(run2.skippedDocsCount, 45);
     assert.equal(run2.errors.length, 0);
 
-    // Document counts and chunk counts must remain identical
     const docCount = db.prepare('SELECT COUNT(*) as count FROM documents').get();
     const chunkCount = db.prepare('SELECT COUNT(*) as count FROM chunks').get();
     assert.equal(docCount.count, 45);
@@ -130,30 +122,26 @@ test('ingestCorpus replaces old chunks and logs UPDATE when document content cha
   const db = initDatabase(dbPath);
 
   try {
-    // Initial ingestion
+
     const run1 = ingestCorpus(db, path.join(tmpDir, 'corpus', 'acme'));
     assert.equal(run1.newDocsCount, 1);
     assert.equal(run1.totalChunks, 1);
 
-    // Modify file with more lines
     let newContent = '';
     for (let i = 1; i <= 60; i++) {
       newContent += `Updated line ${i}\n`;
     }
     fs.writeFileSync(testFile, newContent);
 
-    // Re-run ingestion
     const run2 = ingestCorpus(db, path.join(tmpDir, 'corpus', 'acme'));
     assert.equal(run2.newDocsCount, 0);
     assert.equal(run2.updatedDocsCount, 1);
     assert.equal(run2.totalIndexedDocs, 1);
 
-    // Check that chunk count was updated and old chunks are gone
     const chunks = db.prepare('SELECT * FROM chunks').all();
     assert.ok(chunks.length > 1);
     assert.ok(chunks[0].chunk_text.startsWith('Updated line 1'));
 
-    // Check audit log
     const updateLogs = db.prepare('SELECT * FROM audit_log WHERE action = ?').all('UPDATE');
     assert.equal(updateLogs.length, 1);
   } finally {

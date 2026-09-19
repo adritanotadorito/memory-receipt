@@ -15,34 +15,29 @@ function setupGuardrailsTestDb() {
   const dbPath = path.join(tmpDir, 'test.db');
   const db = initDatabase(dbPath);
 
-  // Seed document with multiple chunks of known lengths
   db.prepare(`
     INSERT INTO documents (id, relative_path, filename, category, imported_at, content_hash, total_lines)
     VALUES ('doc_arch', 'transcripts/01_arch.txt', '01_arch.txt', 'transcript', '2024-01-01', 'h_arch', 100)
   `).run();
 
-  // Chunk 1: ~120 characters
   const chunk1Text = 'Ana Duarte: The primary database architecture decision is PostgreSQL on AWS RDS with WAL archiving enabled.';
   db.prepare(`
     INSERT INTO chunks (id, document_id, chunk_index, chunk_text, start_line, end_line, source_location, created_at)
     VALUES ('doc_arch_c0001', 'doc_arch', 0, ?, 1, 10, 'transcripts/01_arch.txt, lines 1-10', '2024-01-01')
   `).run(chunk1Text);
 
-  // Chunk 2: ~130 characters
   const chunk2Text = 'Carlos Mendes: We also evaluated SQLite and CockroachDB, but finalized PostgreSQL due to existing team operational experience.';
   db.prepare(`
     INSERT INTO chunks (id, document_id, chunk_index, chunk_text, start_line, end_line, source_location, created_at)
     VALUES ('doc_arch_c0002', 'doc_arch', 1, ?, 11, 25, 'transcripts/01_arch.txt, lines 11-25', '2024-01-01')
   `).run(chunk2Text);
 
-  // Chunk 3: ~140 characters
   const chunk3Text = 'Nadia Haddad: Backup retention policy is set to 30 days point-in-time recovery with daily snapshots exported to cold storage.';
   db.prepare(`
     INSERT INTO chunks (id, document_id, chunk_index, chunk_text, start_line, end_line, source_location, created_at)
     VALUES ('doc_arch_c0003', 'doc_arch', 2, ?, 26, 40, 'transcripts/01_arch.txt, lines 26-40', '2024-01-01')
   `).run(chunk3Text);
 
-  // Seed benchmark/practice docs that MUST be excluded
   db.prepare(`
     INSERT INTO documents (id, relative_path, filename, category, imported_at, content_hash, total_lines)
     VALUES ('doc_readme', '00_README.md', '00_README.md', 'report', '2024-01-01', 'h_readme', 10)
@@ -61,7 +56,6 @@ function setupGuardrailsTestDb() {
     VALUES ('doc_practice_c0001', 'doc_practice', 0, 'Practice: What is the database architecture? Target: PostgreSQL RDS.', 1, 10, 'PRACTICE-QUESTIONS.md, lines 1-10', '2024-01-01')
   `).run();
 
-  // Seed decision events
   const ev1 = createDecisionEvent(db, {
     chunk_id: 'doc_arch_c0001',
     event_type: 'commitment',
@@ -111,8 +105,7 @@ test('1. evidence packing bounds total character count by MAX_EVIDENCE_CHARS wit
   };
 
   try {
-    // Set a very tight MAX_EVIDENCE_CHARS (e.g. 150 chars)
-    // Chunk 1 alone is ~108 chars. Adding Chunk 2 would push it over 200 chars.
+
     const result = await answerQuestion(db, 'What is the database architecture?', mockLlm, {
       maxEvidenceChars: 150,
       limit: 5,
@@ -123,9 +116,8 @@ test('1. evidence packing bounds total character count by MAX_EVIDENCE_CHARS wit
     assert.ok(result.metrics.retrievedChunkCount >= 1);
     assert.ok(result.metrics.evidenceCharCount > 0);
 
-    // Verify chunk 1 text is included in full without slicing
     assert.ok(capturedPrompt.includes('The primary database architecture decision is PostgreSQL on AWS RDS with WAL archiving enabled.'));
-    // Verify chunk 2 was excluded because it exceeded budget
+
     assert.ok(!capturedPrompt.includes('Carlos Mendes: We also evaluated SQLite'));
   } finally {
     cleanupGuardrailsTestDb(db, tmpDir);
@@ -157,7 +149,7 @@ test('2. evidence packing includes first chunk in full even if it alone exceeds 
   };
 
   try {
-    // Budget of only 20 chars, but chunk 1 is >100 chars
+
     const result = await answerQuestion(db, 'What is the database architecture?', mockLlm, {
       maxEvidenceChars: 20,
     });
@@ -239,7 +231,6 @@ test('4. answerQuestion writes usage log without storing question, prompt, or so
     assert.ok(log.included_chunk_count > 0);
     assert.ok(log.evidence_char_count > 0);
 
-    // Verify privacy: Table columns contain no question or prompt or source text
     const serializedRow = JSON.stringify(log);
     assert.ok(!serializedRow.includes('confidential secret architecture'));
     assert.ok(!serializedRow.includes('Ana Duarte'));
@@ -252,7 +243,6 @@ test('4. answerQuestion writes usage log without storing question, prompt, or so
 test('5. failed answer attempt writes usage row with success = 0 and safe error category', async () => {
   const { db, tmpDir } = setupGuardrailsTestDb();
 
-  // Mock LLM that throws a timeout error
   const mockTimeoutLlm = async () => {
     throw new Error('LLM request timed out after 60000ms');
   };
@@ -279,7 +269,6 @@ test('5. failed answer attempt writes usage row with success = 0 and safe error 
 test('6. getUsageSummary and GET /api/usage-summary return correct aggregates', async () => {
   const { db, tmpDir } = setupGuardrailsTestDb();
 
-  // Log a few simulated events
   logLlmUsage(db, {
     operation: 'answer',
     model: 'gpt-4.1-mini',
@@ -317,19 +306,17 @@ test('6. getUsageSummary and GET /api/usage-summary return correct aggregates', 
     error_category: 'timeout',
   });
 
-  // Direct function verification
   const summary = getUsageSummary(db);
   assert.equal(summary.answerRequests, 3);
   assert.equal(summary.totalPromptTokens, 300);
   assert.equal(summary.totalCompletionTokens, 150);
   assert.equal(summary.totalTokens, 450);
-  assert.equal(summary.averageTokensPerSuccessfulAnswer, 225); // (150 + 300) / 2 = 225
+  assert.equal(summary.averageTokensPerSuccessfulAnswer, 225);
   assert.ok(summary.latestAnswer);
   assert.equal(summary.latestAnswer.retrievedChunkCount, 8);
   assert.equal(summary.latestAnswer.includedChunkCount, 4);
   assert.equal(summary.latestAnswer.evidenceCharCount, 3500);
 
-  // API Route verification
   const app = createApp(db);
   const server = app.listen(0);
   const port = server.address().port;

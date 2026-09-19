@@ -2,13 +2,6 @@
 import { initDatabase } from './db.js';
 import { previewPersonDeletion, deletePersonData, verifyPersonDeletion } from './deletion.js';
 
-/**
- * CLI script to execute or preview true, durable deletion of a person from the memory system.
- *
- * Usage:
- *   npm run delete-person -- "Kwame Boateng" --dry-run
- *   npm run delete-person -- "Kwame Boateng" --confirm
- */
 async function main() {
   const args = process.argv.slice(2);
   const isConfirm = args.includes('--confirm');

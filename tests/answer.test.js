@@ -13,7 +13,6 @@ function setupAnswerTestDb() {
   const dbPath = path.join(tmpDir, 'test.db');
   const db = initDatabase(dbPath);
 
-  // Seed transcript document
   db.prepare(`
     INSERT INTO documents (id, relative_path, filename, category, imported_at, content_hash, total_lines)
     VALUES ('doc_scope', 'transcripts/02_scope.txt', '02_scope.txt', 'transcript', '2024-01-01', 'h_scope', 30)
@@ -29,7 +28,6 @@ Nadia Haddad: Understood, bakery remains out of scope until Q3.`;
     VALUES (?, 'doc_scope', 0, ?, 1, 15, 'transcripts/02_scope.txt, lines 1-15', '2024-01-01')
   `).run(chunkScopeId, chunkScopeText);
 
-  // Seed email document with conflicting shelf life proposals
   db.prepare(`
     INSERT INTO documents (id, relative_path, filename, category, imported_at, content_hash, total_lines)
     VALUES ('doc_shelf', 'emails/05_shelf_life.txt', '05_shelf_life.txt', 'email', '2024-01-01', 'h_shelf', 30)
@@ -59,7 +57,6 @@ Due to ERP schema constraints, we must map shelf_life_days to shelf_life_total i
     VALUES (?, 'doc_shelf', 1, ?, 13, 25, 'emails/05_shelf_life.txt, lines 13-25', '2024-01-01')
   `).run(chunkShelf2Id, chunkShelf2Text);
 
-  // Seed benchmark files that MUST be excluded from evidence packet
   db.prepare(`
     INSERT INTO documents (id, relative_path, filename, category, imported_at, content_hash, total_lines)
     VALUES ('doc_readme', '00_README.md', '00_README.md', 'report', '2024-01-01', 'h_readme', 10)
@@ -80,7 +77,6 @@ Due to ERP schema constraints, we must map shelf_life_days to shelf_life_total i
     VALUES ('doc_practice_c0001', 'doc_practice', 0, 'Practice Question: What is bakery scope? Target Answer: Bakery is out of scope.', 1, 10, 'PRACTICE-QUESTIONS.md, lines 1-10', '2024-01-01')
   `).run();
 
-  // Seed decision events in the ledger
   const ev1 = createDecisionEvent(db, {
     chunk_id: chunkScopeId,
     event_type: 'status_claim',
@@ -170,13 +166,11 @@ test('1. valid receipt IDs resolve to stored literal quotes and physical citatio
     assert.equal(result.claims[0].text, 'Bakery is out of scope for Phase 1');
     assert.deepEqual(result.claims[0].receipt_ids, [`event-${ev1.id}`]);
 
-    // Code attached literal quote from database
     assert.equal(result.claims[0].evidence_quote, 'Bakery is out of scope for Phase 1.');
     assert.equal(result.claims[0].currency, 'current');
     assert.equal(result.claims[0].receipts.length, 1);
     assert.equal(result.claims[0].receipts[0].exactQuote, 'Bakery is out of scope for Phase 1.');
 
-    // Citations validation
     assert.equal(result.citations.length, 1);
     assert.equal(result.citations[0].citationNumber, 1);
     assert.equal(result.citations[0].receiptId, `event-${ev1.id}`);
@@ -187,7 +181,6 @@ test('1. valid receipt IDs resolve to stored literal quotes and physical citatio
     assert.equal(result.citations[0].endLine, 15);
     assert.equal(result.citations[0].exactQuote, 'Bakery is out of scope for Phase 1.');
 
-    // Verify prompt contained receipt collection
     assert.ok(capturedPrompt.includes(`[Receipt ID: event-${ev1.id}]`));
     assert.ok(capturedPrompt.includes('Quote: "Bakery is out of scope for Phase 1."'));
   } finally {
@@ -205,7 +198,7 @@ test('2. invented receipt ID is rejected and safely falls back when no valid cla
       claims: [
         {
           text: 'Secret meeting canceled bakery',
-          receipt_ids: ['event-99999'], // Hallucinated receipt ID
+          receipt_ids: ['event-99999'],
           currency: 'current',
         },
       ],
@@ -237,12 +230,12 @@ test('3. one invalid claim does not erase separate valid claims', async () => {
       claims: [
         {
           text: 'Invented assertion with fake receipt',
-          receipt_ids: ['event-99999'], // Invalid receipt ID
+          receipt_ids: ['event-99999'],
           currency: 'current',
         },
         {
           text: 'Bakery is out of scope for Phase 1',
-          receipt_ids: [`event-${ev1.id}`], // Valid receipt ID
+          receipt_ids: [`event-${ev1.id}`],
           currency: 'current',
         },
       ],
@@ -255,7 +248,6 @@ test('3. one invalid claim does not erase separate valid claims', async () => {
   try {
     const result = await answerQuestion(db, 'What is the decision on bakery scope?', mockLlm);
 
-    // Answer is preserved because 1 valid claim succeeded
     assert.equal(result.status, 'answered');
     assert.equal(result.claims.length, 1);
     assert.equal(result.claims[0].text, 'Bakery is out of scope for Phase 1');
@@ -311,7 +303,6 @@ test('4. conflicting evidence status with multiple receipts preserves both histo
 test('5. answer falls back to insufficient_evidence only when no supported claim remains', async () => {
   const { db, tmpDir } = setupAnswerTestDb();
 
-  // Scenario A: Chunks are retrieved, but LLM determines evidence is insufficient
   const mockLlmInsufficient = async () => ({
     text: JSON.stringify({
       status: 'insufficient_evidence',
@@ -329,7 +320,6 @@ test('5. answer falls back to insufficient_evidence only when no supported claim
   assert.equal(resultA.citations.length, 0);
   assert.equal(resultA.reasoningNote, 'No receipts specify the packaging vendor.');
 
-  // Scenario B: Zero matching chunks found in hybrid search
   const resultB = await answerQuestion(db, 'What is the aircraft fleet maintenance schedule?', mockLlmInsufficient);
   assert.equal(resultB.status, 'insufficient_evidence');
   assert.equal(resultB.claims.length, 0);
@@ -366,13 +356,11 @@ test('6. README and practice questions never enter the receipts or evidence pack
   try {
     await answerQuestion(db, 'What is the bakery scope?', mockLlm);
 
-    // Verify benchmark files never entered prompt
     assert.ok(!capturedPrompt.includes('00_README.md'), 'Evidence packet must NOT include 00_README.md');
     assert.ok(!capturedPrompt.includes('PRACTICE-QUESTIONS.md'), 'Evidence packet must NOT include PRACTICE-QUESTIONS.md');
     assert.ok(!capturedPrompt.includes('Internal benchmark rules'), 'Evidence packet must NOT include benchmark text');
     assert.ok(!capturedPrompt.includes('Practice Question:'), 'Evidence packet must NOT include practice questions text');
 
-    // Verify legitimate transcript chunk WAS included
     assert.ok(capturedPrompt.includes('transcripts/02_scope.txt'));
   } finally {
     cleanupAnswerTestDb(db, tmpDir);
@@ -387,24 +375,19 @@ test('7. parseAnswerResponse handles raw JSON, markdown blocks, and invalid JSON
     reasoning_note: null,
   });
 
-  // Plain JSON
   const r1 = parseAnswerResponse(validJson);
   assert.equal(r1.status, 'answered');
   assert.equal(r1.answer, 'Direct answer');
 
-  // Markdown code fence with json identifier
   const r2 = parseAnswerResponse(`\`\`\`json\n${validJson}\n\`\`\``);
   assert.equal(r2.status, 'answered');
 
-  // Markdown code fence without json identifier
   const r3 = parseAnswerResponse(`\`\`\`\n${validJson}\n\`\`\``);
   assert.equal(r3.status, 'answered');
 
-  // Conversational preamble surrounding JSON
   const r4 = parseAnswerResponse(`Here is the result:\n${validJson}\nHope that helps!`);
   assert.equal(r4.status, 'answered');
 
-  // Invalid JSON strings
   assert.equal(parseAnswerResponse(''), null);
   assert.equal(parseAnswerResponse(null), null);
   assert.equal(parseAnswerResponse('not a json string'), null);

@@ -1,9 +1,3 @@
-/**
- * Keyword search over SQLite FTS5 using BM25 ranking.
- * Attaches exact source citations and highlighted snippets to retrieved chunks.
- */
-
-// High-frequency grammatical stop words to filter out for cleaner query token weighting
 const STOP_WORDS = new Set([
   'a', 'an', 'and', 'are', 'as', 'at', 'be', 'been', 'being', 'but', 'by',
   'did', 'do', 'does', 'doing', 'for', 'from', 'had', 'has', 'have', 'having',
@@ -15,14 +9,6 @@ const STOP_WORDS = new Set([
   'whom', 'why', 'with', 'would', 'you', 'your', 'yours'
 ]);
 
-/**
- * Sanitizes and formats a natural language user query for SQLite FTS5 MATCH syntax.
- * Extracts meaningful keyword tokens, strips special FTS characters, and builds a
- * balanced query supporting exact tokens and prefix matches.
- *
- * @param {string} userQuery
- * @returns {string} Safe FTS5 MATCH expression
- */
 export function prepareFtsQuery(userQuery) {
   if (!userQuery || typeof userQuery !== 'string') {
     return '';
@@ -42,7 +28,6 @@ export function prepareFtsQuery(userQuery) {
   const significantTokens = rawTokens.filter((t) => !STOP_WORDS.has(t));
   const queryTokens = significantTokens.length > 0 ? significantTokens : rawTokens;
 
-  // Build FTS5 expression with prefix matching for terms of length >= 3
   const ftsClauses = [];
 
   for (const token of queryTokens) {
@@ -57,24 +42,6 @@ export function prepareFtsQuery(userQuery) {
   return ftsClauses.join(' OR ');
 }
 
-/**
- * Searches the SQLite FTS5 index for relevant document chunks.
- *
- * @param {import('better-sqlite3').Database} db - SQLite database instance
- * @param {string} query - Natural language search query
- * @param {number} [limit=8] - Maximum number of chunks to return (default 8)
- * @returns {Array<{
- *   chunkId: string,
- *   documentId: string,
- *   relativePath: string,
- *   filename: string,
- *   category: string,
- *   sourceLocation: string,
- *   exactSourceText: string,
- *   snippet: string,
- *   relevanceScore: number
- * }>}
- */
 export function searchChunks(db, query, limit = 8) {
   const ftsQuery = prepareFtsQuery(query);
   if (!ftsQuery) {
@@ -104,8 +71,7 @@ export function searchChunks(db, query, limit = 8) {
     const rows = stmt.all(ftsQuery, limit);
 
     return rows.map((row) => {
-      // In SQLite FTS5 bm25(), more negative scores mean stronger relevance.
-      // We convert this to a positive relevance score for intuitive readability.
+
       const relevanceScore = parseFloat(Math.abs(row.bm25_rank).toFixed(4));
 
       return {

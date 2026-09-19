@@ -17,15 +17,11 @@ import {
   VALID_RELATION_TYPES,
 } from '../src/ledger.js';
 
-/**
- * Helper to create a temporary SQLite test database with a seed document and chunk.
- */
 function setupTestDb() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ledger-test-'));
   const dbPath = path.join(tmpDir, 'test.db');
   const db = initDatabase(dbPath);
 
-  // Seed document
   const docId = 'doc_test_01';
   db.prepare(`
     INSERT INTO documents (id, relative_path, filename, category, imported_at, content_hash, total_lines)
@@ -40,7 +36,6 @@ function setupTestDb() {
     50
   );
 
-  // Seed chunk 1
   const chunk1Id = 'doc_test_01_c0001';
   const chunk1Text = `Subject: Shelf-Life Field Mapping Discussion
 From: Kwame Boateng <kwame@acme.org>
@@ -63,7 +58,6 @@ Sofia agreed that this avoids duplicate date calculations during the warehouse m
     '2024-03-20T10:00:00.000Z'
   );
 
-  // Seed chunk 2
   const chunk2Id = 'doc_test_01_c0002';
   const chunk2Text = `Subject: Re: Shelf-Life Field Mapping Discussion
 From: Sofia Almeida <sofia@acme.org>
@@ -124,13 +118,11 @@ test('1. valid quoted event creation succeeds with audit logging', () => {
     assert.equal(event.confidence, 0.95);
     assert.equal(event.verification_status, 'candidate');
 
-    // Verify persisted record in SQLite
     const saved = db.prepare('SELECT * FROM decision_events WHERE id = ?').get(event.id);
     assert.ok(saved);
     assert.equal(saved.exact_quote, quote);
     assert.equal(saved.actor_name, 'Kwame Boateng');
 
-    // Verify audit log entry
     const audit = db.prepare('SELECT * FROM audit_log WHERE action = ?').get('CREATE_DECISION_EVENT');
     assert.ok(audit);
     assert.equal(audit.document_id, 'doc_test_01');
@@ -163,7 +155,6 @@ test('2. invented quote is rejected immediately', () => {
       }
     );
 
-    // Verify nothing was inserted
     const count = db.prepare('SELECT COUNT(*) as count FROM decision_events').get();
     assert.equal(count.count, 0);
   } finally {
@@ -177,7 +168,6 @@ test('3. invalid types, status, confidence, and missing fields are rejected', ()
   try {
     const validQuote = 'We are proposing to map shelf_life_days to the expiration_window field in ERP.';
 
-    // Invalid event_type
     assert.throws(
       () => {
         createDecisionEvent(db, {
@@ -192,7 +182,6 @@ test('3. invalid types, status, confidence, and missing fields are rejected', ()
       { message: /Invalid event_type/ }
     );
 
-    // Invalid verification_status
     assert.throws(
       () => {
         createDecisionEvent(db, {
@@ -207,7 +196,6 @@ test('3. invalid types, status, confidence, and missing fields are rejected', ()
       { message: /Invalid verification_status/ }
     );
 
-    // Invalid confidence (> 1.0)
     assert.throws(
       () => {
         createDecisionEvent(db, {
@@ -222,7 +210,6 @@ test('3. invalid types, status, confidence, and missing fields are rejected', ()
       { message: /confidence must be a number between 0.0 and 1.0/ }
     );
 
-    // Invalid confidence (< 0.0)
     assert.throws(
       () => {
         createDecisionEvent(db, {
@@ -237,7 +224,6 @@ test('3. invalid types, status, confidence, and missing fields are rejected', ()
       { message: /confidence must be a number between 0.0 and 1.0/ }
     );
 
-    // Non-existent chunk_id
     assert.throws(
       () => {
         createDecisionEvent(db, {
@@ -252,7 +238,6 @@ test('3. invalid types, status, confidence, and missing fields are rejected', ()
       { message: /Referenced chunk_id .* does not exist/ }
     );
 
-    // Empty exact quote
     assert.throws(
       () => {
         createDecisionEvent(db, {
@@ -267,7 +252,6 @@ test('3. invalid types, status, confidence, and missing fields are rejected', ()
       { message: /exact_quote must be a non-empty string/ }
     );
 
-    // Missing / empty topic
     assert.throws(
       () => {
         createDecisionEvent(db, {
@@ -290,7 +274,7 @@ test('4. relations are returned in a topic’s local graph with endpoint validat
   const { db, tmpDir, chunk1Id, chunk2Id } = setupTestDb();
 
   try {
-    // Event 1: Proposal in chunk 1
+
     const event1 = createDecisionEvent(db, {
       chunk_id: chunk1Id,
       event_type: 'proposal',
@@ -302,7 +286,6 @@ test('4. relations are returned in a topic’s local graph with endpoint validat
       verification_status: 'superseded',
     });
 
-    // Event 2: Reversal in chunk 2
     const event2 = createDecisionEvent(db, {
       chunk_id: chunk2Id,
       event_type: 'reversal',
@@ -314,12 +297,11 @@ test('4. relations are returned in a topic’s local graph with endpoint validat
       verification_status: 'supported',
     });
 
-    // Invalid relation endpoint
     assert.throws(
       () => {
         createEventRelation(db, {
           from_event_id: event2.id,
-          to_event_id: 99999, // non-existent
+          to_event_id: 99999,
           relation_type: 'supersedes',
           explanation: 'Reversal supersedes proposal',
         });
@@ -327,7 +309,6 @@ test('4. relations are returned in a topic’s local graph with endpoint validat
       { message: /Target decision event with id 99999 does not exist/ }
     );
 
-    // Invalid relation type
     assert.throws(
       () => {
         createEventRelation(db, {
@@ -340,7 +321,6 @@ test('4. relations are returned in a topic’s local graph with endpoint validat
       { message: /Invalid relation_type/ }
     );
 
-    // Valid relation: Event 2 supersedes Event 1
     const relation = createEventRelation(db, {
       from_event_id: event2.id,
       to_event_id: event1.id,
@@ -353,7 +333,6 @@ test('4. relations are returned in a topic’s local graph with endpoint validat
     assert.equal(relation.to_event_id, event1.id);
     assert.equal(relation.relation_type, 'supersedes');
 
-    // Retrieve local graph for the topic
     const graph = getLocalEventGraph(db, 'Shelf Life Field Mapping');
     assert.equal(graph.topic, 'Shelf Life Field Mapping');
     assert.equal(graph.events.length, 2);
@@ -366,7 +345,6 @@ test('4. relations are returned in a topic’s local graph with endpoint validat
     assert.equal(graph.relations[0].from_topic, 'Shelf Life Field Mapping');
     assert.equal(graph.relations[0].to_topic, 'Shelf Life Field Mapping');
 
-    // Retrieve list of events for topic
     const events = getEventsForTopic(db, 'Shelf Life Field Mapping');
     assert.equal(events.length, 2);
     assert.equal(events[0].source_location, 'emails/01_shelf_life.txt, lines 1-10');
@@ -405,31 +383,24 @@ test('5. deleting a chunk truly cascades to events and relations', () => {
       explanation: 'Follow up action',
     });
 
-    // Assert initial records exist
     assert.equal(db.prepare('SELECT COUNT(*) as c FROM decision_events').get().c, 2);
     assert.equal(db.prepare('SELECT COUNT(*) as c FROM event_relations').get().c, 1);
 
-    // Delete chunk 1 directly
     db.prepare('DELETE FROM chunks WHERE id = ?').run(chunk1Id);
 
-    // Event 1 was on chunk 1, so Event 1 must be deleted
     const remainingEvents = db.prepare('SELECT * FROM decision_events').all();
     assert.equal(remainingEvents.length, 1);
     assert.equal(remainingEvents[0].id, event2.id);
 
-    // The relation connected to Event 1 must be cascade deleted
     const remainingRelations = db.prepare('SELECT COUNT(*) as c FROM event_relations').get();
     assert.equal(remainingRelations.c, 0);
 
-    // Delete Event 2 via deleteDecisionEvent API
     const deleteResult = deleteDecisionEvent(db, event2.id);
     assert.equal(deleteResult.deleted, true);
     assert.equal(deleteResult.changes, 1);
 
-    // Verify all events are gone
     assert.equal(db.prepare('SELECT COUNT(*) as c FROM decision_events').get().c, 0);
 
-    // Verify deletion audit log was recorded
     const delAudit = db.prepare('SELECT * FROM audit_log WHERE action = ?').get('DELETE_DECISION_EVENT');
     assert.ok(delAudit);
   } finally {
@@ -465,7 +436,6 @@ test('7. safe schema migration converts legacy TEXT chunk_id column to INTEGER',
     rawDb.pragma('journal_mode = WAL');
     rawDb.pragma('foreign_keys = ON');
 
-    // Create legacy schema with chunk_id as TEXT
     rawDb.exec(`
       CREATE TABLE documents (
         id TEXT PRIMARY KEY,
@@ -522,7 +492,6 @@ test('7. safe schema migration converts legacy TEXT chunk_id column to INTEGER',
       );
     `);
 
-    // Insert legacy record with numeric chunk ID
     rawDb.prepare(`
       INSERT INTO documents VALUES ('doc_1', 'path/1.txt', '1.txt', 'email', '2024-01-01', 'h1', 10)
     `).run();
@@ -543,35 +512,30 @@ test('7. safe schema migration converts legacy TEXT chunk_id column to INTEGER',
       INSERT INTO event_relations VALUES (1, 2, 1, 'supports', 'Legacy relation', '2024-01-02')
     `).run();
 
-    // Verify it was TEXT initially
     const preInfo = rawDb.prepare('PRAGMA table_info(decision_events)').all();
     const preCol = preInfo.find((c) => c.name === 'chunk_id');
     assert.equal(preCol.type.toUpperCase(), 'TEXT');
 
     rawDb.close();
 
-    // Now call initDatabase which runs the migration
     const migratedDb = initDatabase(dbPath);
 
     try {
-      // Verify schema is now INTEGER
+
       const postInfo = migratedDb.prepare('PRAGMA table_info(decision_events)').all();
       const postCol = postInfo.find((c) => c.name === 'chunk_id');
       assert.equal(postCol.type.toUpperCase(), 'INTEGER');
 
-      // Verify event data was preserved
       const events = migratedDb.prepare('SELECT * FROM decision_events ORDER BY id ASC').all();
       assert.equal(events.length, 2);
       assert.equal(events[0].chunk_id, 101);
       assert.equal(events[0].topic, 'Legacy Topic');
       assert.equal(events[1].chunk_id, 101);
 
-      // Verify relation was preserved
       const rels = migratedDb.prepare('SELECT * FROM event_relations').all();
       assert.equal(rels.length, 1);
       assert.equal(rels[0].relation_type, 'supports');
 
-      // Verify cascading delete still functions on the migrated table
       migratedDb.prepare("DELETE FROM chunks WHERE id = '101'").run();
       assert.equal(migratedDb.prepare('SELECT COUNT(*) as c FROM decision_events').get().c, 0);
       assert.equal(migratedDb.prepare('SELECT COUNT(*) as c FROM event_relations').get().c, 0);

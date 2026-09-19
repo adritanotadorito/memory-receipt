@@ -24,7 +24,6 @@ function setupDeletionTestDb() {
   const emailsDir = path.join(corpusDir, 'emails');
   fs.mkdirSync(emailsDir, { recursive: true });
 
-  // Document 1 with Kwame Boateng
   const doc1Content = [
     'Subject: Shelf-Life Field Mapping Discussion',
     'From: Kwame Boateng <kwame@acme.org>',
@@ -35,7 +34,6 @@ function setupDeletionTestDb() {
   ].join('\n') + '\n';
   fs.writeFileSync(path.join(emailsDir, '01_shelf.txt'), doc1Content);
 
-  // Document 2 without Kwame Boateng
   const doc2Content = [
     'Subject: Warehouse Dairy Operations',
     'From: Ana Duarte <ana@acme.org>',
@@ -46,7 +44,6 @@ function setupDeletionTestDb() {
   ].join('\n') + '\n';
   fs.writeFileSync(path.join(emailsDir, '02_dairy.txt'), doc2Content);
 
-  // Ingest initial documents
   ingestCorpus(db, corpusDir);
 
   const chunk1 = db.prepare("SELECT * FROM chunks WHERE INSTR(chunk_text, 'Kwame Boateng') > 0").get();
@@ -55,7 +52,6 @@ function setupDeletionTestDb() {
   assert.ok(chunk1, 'Chunk 1 must exist');
   assert.ok(chunk2, 'Chunk 2 must exist');
 
-  // Seed mock embeddings
   db.prepare(`
     INSERT INTO chunk_embeddings (chunk_id, model_name, embedding_json, created_at)
     VALUES (?, 'test-model', '[0.1, 0.2]', '2024-01-01')
@@ -65,7 +61,6 @@ function setupDeletionTestDb() {
     VALUES (?, 'test-model', '[0.3, 0.4]', '2024-01-01')
   `).run(chunk2.id);
 
-  // Seed mock extractions
   db.prepare(`
     INSERT INTO chunk_extractions (chunk_id, extractor_version, model_name, completed_at, event_count)
     VALUES (?, 'v1', 'gpt-4', '2024-01-01', 2)
@@ -75,7 +70,6 @@ function setupDeletionTestDb() {
     VALUES (?, 'v1', 'gpt-4', '2024-01-01', 1)
   `).run(chunk2.id);
 
-  // Seed decision events
   const ev1 = createDecisionEvent(db, {
     chunk_id: chunk1.id,
     event_type: 'proposal',
@@ -110,7 +104,6 @@ function setupDeletionTestDb() {
     verification_status: 'candidate',
   });
 
-  // Seed event relations
   createEventRelation(db, {
     from_event_id: ev1.id,
     to_event_id: ev2.id,
@@ -163,14 +156,13 @@ test('2. previewPersonDeletion returns accurate impact counts without modifying 
     assert.equal(preview.normalizedName, 'kwame boateng');
     assert.equal(preview.affectedChunksCount, 1);
     assert.equal(preview.affectedChunks[0].chunk_id, chunk1Id);
-    assert.equal(preview.affectedEventsCount, 2); // ev1 (actor Kwame) + ev2 (same chunk)
-    assert.equal(preview.affectedRelationsCount, 2); // rel 1 & rel 2
+    assert.equal(preview.affectedEventsCount, 2);
+    assert.equal(preview.affectedRelationsCount, 2);
     assert.equal(preview.affectedEmbeddingsCount, 1);
     assert.equal(preview.affectedExtractionsCount, 1);
     assert.equal(preview.affectedDocuments.length, 1);
     assert.ok(preview.affectedDocuments[0].endsWith('emails/01_shelf.txt'));
 
-    // Verify nothing was deleted
     const chunkCount = db.prepare('SELECT COUNT(*) as count FROM chunks').get().count;
     assert.equal(chunkCount, 2);
     const eventCount = db.prepare('SELECT COUNT(*) as count FROM decision_events').get().count;
@@ -193,31 +185,24 @@ test('3. confirmed deletion removes target chunks, FTS entries, embeddings, even
     assert.equal(result.deletedEmbeddingsCount, 1);
     assert.equal(result.deletedExtractionsCount, 1);
 
-    // Chunks table check
     assert.equal(db.prepare('SELECT COUNT(*) as count FROM chunks WHERE id = ?').get(chunk1Id).count, 0);
     assert.equal(db.prepare('SELECT COUNT(*) as count FROM chunks WHERE id = ?').get(chunk2Id).count, 1);
 
-    // FTS5 index check
     const ftsMatches = db.prepare("SELECT COUNT(*) as count FROM chunks_fts WHERE chunks_fts MATCH '\"Kwame\"'").get().count;
     assert.equal(ftsMatches, 0);
 
-    // Vector embeddings check
     assert.equal(db.prepare('SELECT COUNT(*) as count FROM chunk_embeddings WHERE chunk_id = ?').get(chunk1Id).count, 0);
     assert.equal(db.prepare('SELECT COUNT(*) as count FROM chunk_embeddings WHERE chunk_id = ?').get(chunk2Id).count, 1);
 
-    // Extraction records check
     assert.equal(db.prepare('SELECT COUNT(*) as count FROM chunk_extractions WHERE chunk_id = ?').get(chunk1Id).count, 0);
     assert.equal(db.prepare('SELECT COUNT(*) as count FROM chunk_extractions WHERE chunk_id = ?').get(chunk2Id).count, 1);
 
-    // Decision events check
     assert.equal(db.prepare('SELECT COUNT(*) as count FROM decision_events WHERE id = ?').get(ev1Id).count, 0);
     assert.equal(db.prepare('SELECT COUNT(*) as count FROM decision_events WHERE id = ?').get(ev2Id).count, 0);
     assert.equal(db.prepare('SELECT COUNT(*) as count FROM decision_events WHERE id = ?').get(ev3Id).count, 1);
 
-    // Event relations check
     assert.equal(db.prepare('SELECT COUNT(*) as count FROM event_relations').get().count, 0);
 
-    // Tombstone check
     const tombstones = getDeletionTombstones(db);
     assert.equal(tombstones.length, 1);
     assert.equal(tombstones[0].target_value, 'Kwame Boateng');
@@ -252,19 +237,16 @@ test('5. rerunning ingestion does not resurrect deleted person data from raw cor
   const { db, tmpDir, corpusDir, chunk1Id } = setupDeletionTestDb();
 
   try {
-    // Delete target person data
+
     deletePersonData(db, 'Kwame Boateng');
     assert.equal(db.prepare('SELECT COUNT(*) as count FROM chunks WHERE id = ?').get(chunk1Id).count, 0);
 
-    // Rerun ingestion from raw corpus
     const ingestSummary = ingestCorpus(db, corpusDir);
     assert.ok(ingestSummary);
 
-    // Verify chunk containing Kwame was NOT reinserted
     const resurrectedChunks = db.prepare("SELECT COUNT(*) as count FROM chunks WHERE INSTR(LOWER(chunk_text), 'kwame boateng') > 0").get().count;
     assert.equal(resurrectedChunks, 0, 'Deleted person chunks must NEVER be resurrected on re-ingestion');
 
-    // Verify un-deleted chunk is still present
     const dairyChunks = db.prepare("SELECT COUNT(*) as count FROM chunks WHERE INSTR(chunk_text, 'Ana Duarte') > 0").get().count;
     assert.equal(dairyChunks, 1);
   } finally {

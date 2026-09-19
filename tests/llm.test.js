@@ -75,14 +75,12 @@ test('2. successfully sends request and parses OpenAI response', async () => {
       response_format: { type: 'text' },
     });
 
-    // Verify endpoint & headers
     assert.equal(capturedUrl, OPENAI_ENDPOINT);
     assert.equal(capturedUrl, 'https://api.openai.com/v1/chat/completions');
     assert.equal(capturedOptions.method, 'POST');
     assert.equal(capturedOptions.headers['Content-Type'], 'application/json');
     assert.equal(capturedOptions.headers['Authorization'], 'Bearer sk-mock-key-12345');
 
-    // Verify payload
     const body = JSON.parse(capturedOptions.body);
     assert.equal(body.model, 'gpt-4.1-mini');
     assert.deepEqual(body.messages, messages);
@@ -90,7 +88,6 @@ test('2. successfully sends request and parses OpenAI response', async () => {
     assert.equal(body.max_tokens, 10);
     assert.deepEqual(body.response_format, { type: 'text' });
 
-    // Verify return format
     assert.equal(result.text, 'OPENAI READY');
     assert.equal(result.model, 'gpt-4.1-mini');
     assert.deepEqual(result.usage, {
@@ -106,7 +103,6 @@ test('2. successfully sends request and parses OpenAI response', async () => {
 test('3. handles non-2xx HTTP responses safely without leaking secrets', async () => {
   resetEnvironment();
 
-  // Test 401 Unauthorized with structured JSON error
   globalThis.fetch = async () => ({
     ok: false,
     status: 401,
@@ -119,7 +115,7 @@ test('3. handles non-2xx HTTP responses safely without leaking secrets', async (
       () => chatCompletion([{ role: 'user', content: 'Ping' }]),
       (err) => {
         assert.match(err.message, /LLM request failed with status 401 \(Unauthorized\): Incorrect API key provided/);
-        // Ensure secret token is NOT leaked in the error message
+
         assert.ok(!err.message.includes('sk-mock-key-12345'));
         return true;
       }
@@ -128,7 +124,6 @@ test('3. handles non-2xx HTTP responses safely without leaking secrets', async (
     resetEnvironment();
   }
 
-  // Test 500 Internal Server Error with plain text body
   globalThis.fetch = async () => ({
     ok: false,
     status: 500,
@@ -178,7 +173,6 @@ test('4. handles timeout via AbortController', async () => {
 test('5. rejects malformed JSON or missing choices content', async () => {
   resetEnvironment();
 
-  // Malformed JSON
   globalThis.fetch = async () => ({
     ok: true,
     status: 200,
@@ -197,7 +191,6 @@ test('5. rejects malformed JSON or missing choices content', async () => {
     resetEnvironment();
   }
 
-  // Missing choices array
   globalThis.fetch = async () => ({
     ok: true,
     status: 200,
@@ -214,7 +207,6 @@ test('5. rejects malformed JSON or missing choices content', async () => {
     resetEnvironment();
   }
 
-  // Missing message.content
   globalThis.fetch = async () => ({
     ok: true,
     status: 200,

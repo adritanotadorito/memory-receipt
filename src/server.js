@@ -15,13 +15,6 @@ import { getUsageSummary } from './usage.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-/**
- * Builds the focused Cytoscape graph payload for an answer's verified receipts and events.
- *
- * @param {import('better-sqlite3').Database} db
- * @param {object} answerResult
- * @returns {{ nodes: Array<object>, edges: Array<object> }}
- */
 export function buildFocusedGraph(db, answerResult) {
   const nodes = [];
   const edges = [];
@@ -32,7 +25,6 @@ export function buildFocusedGraph(db, answerResult) {
   const citations = answerResult.citations || [];
   const claims = answerResult.claims || [];
 
-  // Map each receipt to its claim currency if cited
   const receiptCurrencyMap = new Map();
   claims.forEach((claim) => {
     const rids = claim.receipt_ids || claim.evidence_ids || [];
@@ -41,7 +33,6 @@ export function buildFocusedGraph(db, answerResult) {
     });
   });
 
-  // Prioritize receipts cited in claims, fallback to top retrieved receipts
   const activeReceipts = citations.length > 0
     ? citations
     : receipts.slice(0, 8);
@@ -60,7 +51,6 @@ export function buildFocusedGraph(db, answerResult) {
     const date = r.eventDate || '';
     const actor = r.actorName || '';
 
-    // Event node
     if (!nodeSet.has(rid)) {
       nodeSet.add(rid);
       nodes.push({
@@ -80,7 +70,6 @@ export function buildFocusedGraph(db, answerResult) {
       });
     }
 
-    // Document node
     const docPath = r.relativePath || (r.sourceLocation ? r.sourceLocation.split(',')[0] : 'document');
     const docId = `doc:${docPath}`;
     const docFilename = r.filename || path.basename(docPath);
@@ -98,7 +87,6 @@ export function buildFocusedGraph(db, answerResult) {
       });
     }
 
-    // Edge: Event -> Document (from source)
     const docEdgeId = `edge:${rid}->${docId}`;
     if (!edgeSet.has(docEdgeId)) {
       edgeSet.add(docEdgeId);
@@ -113,7 +101,6 @@ export function buildFocusedGraph(db, answerResult) {
       });
     }
 
-    // Person node
     if (actor && actor.trim()) {
       const actorId = `actor:${actor.trim().toLowerCase()}`;
       if (!nodeSet.has(actorId)) {
@@ -128,7 +115,6 @@ export function buildFocusedGraph(db, answerResult) {
         });
       }
 
-      // Edge: Event -> Actor (attributed to)
       const actorEdgeId = `edge:${rid}->${actorId}`;
       if (!edgeSet.has(actorEdgeId)) {
         edgeSet.add(actorEdgeId);
@@ -145,7 +131,6 @@ export function buildFocusedGraph(db, answerResult) {
     }
   });
 
-  // Query relations between these active events from event_relations
   if (eventIds.length > 0) {
     const placeholders = eventIds.map(() => '?').join(',');
     try {
@@ -181,30 +166,19 @@ export function buildFocusedGraph(db, answerResult) {
   return { nodes, edges };
 }
 
-/**
- * Creates and configures the Express application.
- *
- * @param {import('better-sqlite3').Database} [db]
- * @param {Function} [llm=chatCompletion]
- * @returns {import('express').Express}
- */
 export function createApp(db = initDatabase(), llm = chatCompletion) {
   const app = express();
 
   app.use(express.json());
 
-  // Serve Cytoscape locally from node_modules (No external CDN)
   app.use('/vendor', express.static(path.join(__dirname, '../node_modules/cytoscape/dist')));
 
-  // Serve frontend assets
   app.use(express.static(path.join(__dirname, '../public')));
 
-  // GET /api/health
   app.get('/api/health', (req, res) => {
     res.json({ ok: true, timestamp: new Date().toISOString() });
   });
 
-  // POST /api/ask
   app.post('/api/ask', async (req, res) => {
     try {
       const { question, model } = req.body || {};
@@ -231,7 +205,6 @@ export function createApp(db = initDatabase(), llm = chatCompletion) {
     }
   });
 
-  // POST /api/deletion/preview
   app.post('/api/deletion/preview', (req, res) => {
     try {
       const { personName } = req.body || {};
@@ -247,7 +220,6 @@ export function createApp(db = initDatabase(), llm = chatCompletion) {
     }
   });
 
-  // POST /api/deletion/confirm
   app.post('/api/deletion/confirm', (req, res) => {
     try {
       const { personName, confirmed } = req.body || {};
@@ -270,7 +242,6 @@ export function createApp(db = initDatabase(), llm = chatCompletion) {
     }
   });
 
-  // GET /api/deletion/tombstones
   app.get('/api/deletion/tombstones', (req, res) => {
     try {
       const tombstones = getDeletionTombstones(db);
@@ -280,7 +251,6 @@ export function createApp(db = initDatabase(), llm = chatCompletion) {
     }
   });
 
-  // GET /api/usage-summary
   app.get('/api/usage-summary', (req, res) => {
     try {
       const summary = getUsageSummary(db);
@@ -294,9 +264,6 @@ export function createApp(db = initDatabase(), llm = chatCompletion) {
   return app;
 }
 
-/**
- * Starts the HTTP server.
- */
 export function startServer() {
   const port = Number(process.env.PORT) || 3000;
   const host = '0.0.0.0';
@@ -316,7 +283,6 @@ export function startServer() {
   });
 }
 
-// Auto-start if run directly
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   startServer();
 }

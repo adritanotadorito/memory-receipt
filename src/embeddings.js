@@ -1,20 +1,8 @@
-/**
- * Local semantic embeddings via Xenova/all-MiniLM-L6-v2 transformer pipeline.
- * Generates L2-normalized 384-dimensional vectors so cosine similarity reduces to dot product.
- */
-
 export const DEFAULT_MODEL_NAME = 'Xenova/all-MiniLM-L6-v2';
 
-// Process-level singleton cache for the embedding model pipeline
 let pipelineInstance = null;
 let pipelinePromise = null;
 
-/**
- * Loads the local transformer embedding model once per process (singleton).
- *
- * @param {string} [modelName=DEFAULT_MODEL_NAME]
- * @returns {Promise<Function>}
- */
 export async function getEmbeddingPipeline(modelName = DEFAULT_MODEL_NAME) {
   if (pipelineInstance) {
     return pipelineInstance;
@@ -37,18 +25,10 @@ export async function getEmbeddingPipeline(modelName = DEFAULT_MODEL_NAME) {
   return pipelinePromise;
 }
 
-/**
- * Generates an L2-normalized embedding vector for a given text.
- *
- * @param {string} text - Input text
- * @param {string} [modelName=DEFAULT_MODEL_NAME]
- * @returns {Promise<number[]>} Array of floating point numbers
- */
 export async function generateEmbedding(text, modelName = DEFAULT_MODEL_NAME) {
   const extractor = await getEmbeddingPipeline(modelName);
   const cleanText = text.replace(/\s+/g, ' ').trim();
 
-  // Run feature extraction with mean pooling and L2 normalization
   const output = await extractor(cleanText, {
     pooling: 'mean',
     normalize: true,
@@ -57,13 +37,6 @@ export async function generateEmbedding(text, modelName = DEFAULT_MODEL_NAME) {
   return Array.from(output.data);
 }
 
-/**
- * Computes the dot product (cosine similarity for normalized vectors) between two vectors.
- *
- * @param {number[]} a
- * @param {number[]} b
- * @returns {number} Value in range [-1.0, 1.0]
- */
 export function dotProduct(a, b) {
   let dot = 0;
   const len = a.length;
@@ -73,22 +46,6 @@ export function dotProduct(a, b) {
   return dot;
 }
 
-/**
- * Finds all chunks in the database lacking embeddings and generates them locally.
- * Idempotent: Skips chunks that already have embeddings.
- *
- * @param {import('better-sqlite3').Database} db
- * @param {object} [options]
- * @param {number} [options.batchSize=32]
- * @param {string} [options.modelName=DEFAULT_MODEL_NAME]
- * @param {Function} [options.onProgress]
- * @returns {Promise<{
- *   totalChunks: number,
- *   newEmbeddedCount: number,
- *   skippedCount: number,
- *   modelName: string
- * }>}
- */
 export async function embedCorpusChunks(db, options = {}) {
   const {
     batchSize = 32,
@@ -96,7 +53,6 @@ export async function embedCorpusChunks(db, options = {}) {
     onProgress = null,
   } = options;
 
-  // Find chunks without embeddings
   const missingChunks = db.prepare(`
     SELECT c.id, c.chunk_text
     FROM chunks c
@@ -118,7 +74,6 @@ export async function embedCorpusChunks(db, options = {}) {
     };
   }
 
-  // Pre-load embedding model once before processing loop
   const extractor = await getEmbeddingPipeline(modelName);
 
   const insertStmt = db.prepare(`
@@ -130,7 +85,6 @@ export async function embedCorpusChunks(db, options = {}) {
   let newEmbeddedCount = 0;
   const now = () => new Date().toISOString();
 
-  // Process missing chunks in manageable batches
   for (let i = 0; i < missingChunks.length; i += batchSize) {
     const batch = missingChunks.slice(i, i + batchSize);
     const timestamp = now();
@@ -149,7 +103,6 @@ export async function embedCorpusChunks(db, options = {}) {
       })
     );
 
-    // Save batch atomically
     const transaction = db.transaction(() => {
       for (const item of embeddings) {
         insertStmt.run(
@@ -177,25 +130,6 @@ export async function embedCorpusChunks(db, options = {}) {
   };
 }
 
-/**
- * Performs semantic similarity search against stored chunk embeddings.
- *
- * @param {import('better-sqlite3').Database} db
- * @param {string} query - User search question
- * @param {number} [limit=8] - Number of top chunks to return
- * @param {string} [modelName=DEFAULT_MODEL_NAME]
- * @returns {Promise<Array<{
- *   chunkId: string,
- *   documentId: string,
- *   relativePath: string,
- *   filename: string,
- *   category: string,
- *   sourceLocation: string,
- *   exactSourceText: string,
- *   snippet: string,
- *   similarityScore: number
- * }>>}
- */
 export async function semanticSearch(db, query, limit = 8, modelName = DEFAULT_MODEL_NAME) {
   if (!query || typeof query !== 'string' || !query.trim()) {
     return [];
@@ -222,7 +156,6 @@ export async function semanticSearch(db, query, limit = 8, modelName = DEFAULT_M
     return [];
   }
 
-  // Score chunks via dot product on normalized vectors
   const scored = rows.map((row) => {
     const chunkVector = JSON.parse(row.embedding_json);
     const similarity = dotProduct(queryVector, chunkVector);

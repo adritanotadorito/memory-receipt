@@ -3,10 +3,6 @@
 import { initDatabase } from './db.js';
 import { hybridSearch } from './hybrid.js';
 
-/**
- * CLI runner for hybrid search command.
- * Invoked via: npm run hybrid-search -- "What was agreed about UAT sign-off?"
- */
 async function main() {
   const queryArgs = process.argv.slice(2);
   const query = queryArgs.join(' ').trim();

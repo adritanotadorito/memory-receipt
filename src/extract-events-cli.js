@@ -2,15 +2,6 @@
 import { initDatabase } from './db.js';
 import { extractAllChunks } from './extract-events.js';
 
-/**
- * CLI script to orchestrate decision-event extraction from chunks into SQLite.
- *
- * Flags:
- *   --limit N, -l N   Limit number of chunks to process
- *   --force, -f       Force reprocessing of already extracted chunks
- *   --resume          Skip already extracted chunks (default: true unless --force)
- *   --concurrency N   Worker concurrency (default: 2)
- */
 async function main() {
   const args = process.argv.slice(2);
   let limit = null;

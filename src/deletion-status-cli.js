@@ -2,13 +2,6 @@
 import { initDatabase } from './db.js';
 import { getDeletionTombstones, verifyPersonDeletion } from './deletion.js';
 
-/**
- * CLI script to list and verify all registered deletion tombstones.
- *
- * Usage:
- *   node src/deletion-status-cli.js
- *   npm run deletion-status
- */
 async function main() {
   const dbPath = process.env.DB_PATH || 'data/memory.db';
   const db = initDatabase(dbPath);

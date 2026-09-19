@@ -2,17 +2,6 @@ import Database from 'better-sqlite3';
 import path from 'node:path';
 import fs from 'node:fs';
 
-/**
- * Ensures a runtime SQLite database is available.
- * If the file at `dbPath` does not exist and a seed database exists at `seedPath`,
- * copies the seed database into place.
- *
- * Never overwrites an existing runtime database file.
- *
- * @param {string} [dbPath='data/memory.db'] - Path to target runtime database.
- * @param {string} [seedPath='seed/demo-seed.db'] - Path to prebuilt seed database.
- * @returns {boolean} - true if seed was copied, false otherwise.
- */
 export function ensureSeededDatabase(
   dbPath = process.env.DB_PATH || 'data/memory.db',
   seedPath = process.env.SEED_DB_PATH || 'seed/demo-seed.db'
@@ -35,15 +24,8 @@ export function ensureSeededDatabase(
   return false;
 }
 
-/**
- * Initializes and returns the SQLite database connection.
- * Sets up the schema for documents, line-based chunks, and audit logs.
- *
- * @param {string} [dbPath] - Path to the SQLite database file.
- * @returns {import('better-sqlite3').Database}
- */
 export function initDatabase(dbPath = 'data/memory.db') {
-  // Ensure the target directory exists
+
   const dir = path.dirname(dbPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -51,11 +33,9 @@ export function initDatabase(dbPath = 'data/memory.db') {
 
   const db = new Database(dbPath);
 
-  // Enable WAL mode for high performance and foreign keys for referential integrity
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
 
-  // Create schema
   db.exec(`
     -- Table to track source documents ingested from the corpus
     CREATE TABLE IF NOT EXISTS documents (
@@ -202,7 +182,6 @@ export function initDatabase(dbPath = 'data/memory.db') {
     END;
   `);
 
-  // Migration: Ensure decision_events.chunk_id is INTEGER if it was previously created as TEXT
   const decisionEventsTableInfo = db.prepare("PRAGMA table_info(decision_events)").all();
   const chunkIdColumn = decisionEventsTableInfo.find((col) => col.name === 'chunk_id');
   if (chunkIdColumn && chunkIdColumn.type.toUpperCase() === 'TEXT') {
@@ -274,7 +253,6 @@ export function initDatabase(dbPath = 'data/memory.db') {
     }
   }
 
-  // Backfill chunks_fts if it is empty but chunks table already has records
   const ftsCount = db.prepare('SELECT COUNT(*) as count FROM chunks_fts').get();
   const chunkCount = db.prepare('SELECT COUNT(*) as count FROM chunks').get();
   if (ftsCount.count === 0 && chunkCount.count > 0) {

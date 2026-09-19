@@ -3,10 +3,6 @@
 import { initDatabase } from './db.js';
 import { searchChunks } from './search.js';
 
-/**
- * CLI runner for search command.
- * Invoked via: npm run search -- "What was agreed about UAT sign-off?"
- */
 function main() {
   const queryArgs = process.argv.slice(2);
   const query = queryArgs.join(' ').trim();
@@ -36,9 +32,9 @@ function main() {
 
     results.forEach((r, idx) => {
       const rank = idx + 1;
-      // Convert <b> tags from SQLite snippet into ANSI bold or bracket highlights
+
       const cleanSnippet = r.snippet
-        .replace(/<b>/g, '\x1b[1;33m') // Bold yellow
+        .replace(/<b>/g, '\x1b[1;33m')
         .replace(/<\/b>/g, '\x1b[0m')
         .replace(/\n+/g, ' ')
         .trim();

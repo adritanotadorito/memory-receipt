@@ -3,10 +3,6 @@
 import { initDatabase } from './db.js';
 import { embedCorpusChunks, DEFAULT_MODEL_NAME } from './embeddings.js';
 
-/**
- * CLI runner for `npm run embed`.
- * Generates local semantic embeddings for all un-embedded chunks in the database.
- */
 async function main() {
   console.log('===============================================================');
   console.log('  Memory With a Receipt — Local Semantic Embeddings');

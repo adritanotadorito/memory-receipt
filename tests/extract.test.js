@@ -12,13 +12,11 @@ function setupTestDb() {
   const dbPath = path.join(tmpDir, 'test.db');
   const db = initDatabase(dbPath);
 
-  // Seed document
   db.prepare(`
     INSERT INTO documents (id, relative_path, filename, category, imported_at, content_hash, total_lines)
     VALUES ('doc_01', 'emails/01_shelf.txt', '01_shelf.txt', 'email', '2024-01-01', 'h1', 30)
   `).run();
 
-  // Seed chunk 1 (Email proposal)
   const chunk1Id = 'doc_01_c0001';
   const chunk1Text = `Subject: Shelf-Life Field Mapping Discussion
 From: Kwame Boateng <kwame@acme.org>
@@ -32,7 +30,6 @@ Sofia agreed that this avoids duplicate date calculations during the warehouse m
     VALUES (?, 'doc_01', 0, ?, 1, 10, 'emails/01_shelf.txt, lines 1-10', '2024-01-01')
   `).run(chunk1Id, chunk1Text);
 
-  // Seed chunk 2 (Transcript scope decision)
   const chunk2Id = 'doc_01_c0002';
   const chunk2Text = `Ana Duarte 31 seconds
 Configuration. Nadia.
@@ -185,13 +182,13 @@ test('4. rejects events missing topic and counts them in missingTopicCount', asy
       events: [
         {
           event_type: 'proposal',
-          topic: '', // missing topic
+          topic: '',
           exact_quote: 'We are proposing to map shelf_life_days to the expiration_window field in ERP.',
           confidence: 0.9,
         },
         {
           event_type: 'commitment',
-          // no topic key at all
+
           exact_quote: 'Sofia agreed that this avoids duplicate date calculations during the warehouse migration.',
           confidence: 0.9,
         },
@@ -239,26 +236,23 @@ test('5. force rerun reprocesses chunks without creating duplicate decision even
   };
 
   try {
-    // Run 1: Normal extraction
+
     const summary1 = await extractAllChunks(db, { llm: mockLlm, resume: true, force: false });
     assert.equal(summary1.processedChunks, 2);
     assert.equal(summary1.candidateEventsInserted, 1);
-    assert.equal(summary1.invalidQuotesRejected, 1); // Chunk 2 didn't have chunk 1's quote
+    assert.equal(summary1.invalidQuotesRejected, 1);
     assert.equal(llmCalls, 2);
 
-    // Initial event count
     const initialEvents = db.prepare('SELECT COUNT(*) as count FROM decision_events').get().count;
     assert.equal(initialEvents, 1);
 
-    // Run 2: Force rerun (--force)
     const summary2 = await extractAllChunks(db, { llm: mockLlm, force: true });
     assert.equal(summary2.processedChunks, 2);
-    assert.equal(summary2.candidateEventsInserted, 0); // 0 new events inserted because it was deduplicated
-    assert.equal(summary2.duplicatesSkipped, 1); // Chunk 1 event recognized as duplicate
-    assert.equal(summary2.invalidQuotesRejected, 1); // Chunk 2 bad quote rejected
-    assert.equal(llmCalls, 4); // LLM was called because of force
+    assert.equal(summary2.candidateEventsInserted, 0);
+    assert.equal(summary2.duplicatesSkipped, 1);
+    assert.equal(summary2.invalidQuotesRejected, 1);
+    assert.equal(llmCalls, 4);
 
-    // Total decision_events MUST remain 1 (no duplicates created)
     const finalEvents = db.prepare('SELECT COUNT(*) as count FROM decision_events').get().count;
     assert.equal(finalEvents, 1);
   } finally {

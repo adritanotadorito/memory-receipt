@@ -1,8 +1,3 @@
-/**
- * Decision ledger management: creates and queries grounded decision events and relations.
- * Event quotes are validated against chunk text, and downstream events cascade-delete with chunks.
- */
-
 export const VALID_EVENT_TYPES = new Set([
   'proposal',
   'commitment',
@@ -29,25 +24,6 @@ export const VALID_RELATION_TYPES = new Set([
   'lacks_follow_up',
 ]);
 
-/**
- * Creates a new decision event grounded in an existing chunk.
- * Validates that the exact quote is literally present in the source chunk text.
- *
- * @param {import('better-sqlite3').Database} db
- * @param {object} event
- * @param {string} event.chunk_id - Or chunkId
- * @param {string} event.event_type - Or eventType
- * @param {string} event.topic
- * @param {string} [event.value]
- * @param {string} [event.actor_name] - Or actorName
- * @param {string} [event.actor_organization] - Or actorOrganization
- * @param {string} [event.event_date] - Or eventDate
- * @param {string} event.exact_quote - Or exactQuote
- * @param {number} event.confidence
- * @param {string} event.verification_status - Or verificationStatus
- * @param {string} [event.created_at] - Or createdAt
- * @returns {object} The created decision event with generated ID
- */
 export function createDecisionEvent(db, event) {
   if (!event || typeof event !== 'object') {
     throw new Error('Event data must be a valid object');
@@ -89,7 +65,6 @@ export function createDecisionEvent(db, event) {
     throw new Error(`Invalid verification_status: "${verificationStatus}". Must be one of: ${Array.from(VALID_VERIFICATION_STATUSES).join(', ')}`);
   }
 
-  // Verify literal quote containment in referenced chunk
   const chunk = db.prepare(`
     SELECT c.id, c.chunk_text, c.document_id, d.relative_path
     FROM chunks c
@@ -161,18 +136,6 @@ export function createDecisionEvent(db, event) {
   };
 }
 
-/**
- * Creates a relationship edge between two existing decision events.
- *
- * @param {import('better-sqlite3').Database} db
- * @param {object} relation
- * @param {number} relation.from_event_id - Or fromEventId
- * @param {number} relation.to_event_id - Or toEventId
- * @param {string} relation.relation_type - Or relationType
- * @param {string} [relation.explanation]
- * @param {string} [relation.created_at] - Or createdAt
- * @returns {object} The created relation record with generated ID
- */
 export function createEventRelation(db, relation) {
   if (!relation || typeof relation !== 'object') {
     throw new Error('Relation data must be a valid object');
@@ -196,7 +159,6 @@ export function createEventRelation(db, relation) {
     throw new Error(`Invalid relation_type: "${relationType}". Must be one of: ${Array.from(VALID_RELATION_TYPES).join(', ')}`);
   }
 
-  // Verify both event endpoints exist in decision_events
   const fromEvent = db.prepare('SELECT id, topic FROM decision_events WHERE id = ?').get(fromEventId);
   if (!fromEvent) {
     throw new Error(`Source decision event with id ${fromEventId} does not exist`);
@@ -241,13 +203,6 @@ export function createEventRelation(db, relation) {
   };
 }
 
-/**
- * Retrieves all decision events associated with a specific topic, ordered chronologically.
- *
- * @param {import('better-sqlite3').Database} db
- * @param {string} topic
- * @returns {Array<object>}
- */
 export function getEventsForTopic(db, topic) {
   if (!topic || typeof topic !== 'string' || !topic.trim()) {
     throw new Error('Topic must be a non-empty string');
@@ -271,14 +226,6 @@ export function getEventsForTopic(db, topic) {
   return stmt.all(topic.trim());
 }
 
-/**
- * Retrieves the local event graph for a topic: all topic events and all relation edges
- * connecting them.
- *
- * @param {import('better-sqlite3').Database} db
- * @param {string} topic
- * @returns {{ topic: string, events: Array<object>, relations: Array<object> }}
- */
 export function getLocalEventGraph(db, topic) {
   const events = getEventsForTopic(db, topic);
 
@@ -314,14 +261,6 @@ export function getLocalEventGraph(db, topic) {
   };
 }
 
-/**
- * Deletes a decision event by ID and records an audit log entry.
- * Connected relations are automatically deleted via ON DELETE CASCADE.
- *
- * @param {import('better-sqlite3').Database} db
- * @param {number} eventId
- * @returns {{ deleted: boolean, changes: number }}
- */
 export function deleteDecisionEvent(db, eventId) {
   if (!eventId || typeof eventId !== 'number') {
     throw new Error('eventId must be a valid numeric ID');

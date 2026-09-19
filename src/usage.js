@@ -1,27 +1,3 @@
-/**
- * Privacy-preserving usage ledger: tracks token expenditures and data-minimisation metrics
- * without logging raw questions, prompts, or source text.
- */
-
-/**
- * Logs an LLM usage event to the SQLite usage ledger.
- * Strictly records numeric counters and categorical metadata.
- *
- * @param {import('better-sqlite3').Database} db
- * @param {object} record
- * @param {string} [record.operation='answer']
- * @param {string} [record.model='gpt-4.1-mini']
- * @param {number} [record.prompt_tokens=0]
- * @param {number} [record.completion_tokens=0]
- * @param {number} [record.total_tokens=0]
- * @param {number} [record.retrieved_chunk_count=0]
- * @param {number} [record.included_chunk_count=0]
- * @param {number} [record.evidence_char_count=0]
- * @param {boolean|number} [record.success=true]
- * @param {string|null} [record.error_category=null]
- * @param {string} [record.created_at]
- * @returns {number} Inserted row ID
- */
 export function logLlmUsage(db, record = {}) {
   const createdAt = record.created_at || new Date().toISOString();
   const operation = record.operation || 'answer';
@@ -68,27 +44,6 @@ export function logLlmUsage(db, record = {}) {
   return result.lastInsertRowid;
 }
 
-/**
- * Queries the usage ledger and returns honest aggregate token counts and data-minimisation metrics.
- *
- * @param {import('better-sqlite3').Database} db
- * @returns {{
- *   answerRequests: number,
- *   totalPromptTokens: number,
- *   totalCompletionTokens: number,
- *   totalTokens: number,
- *   averageTokensPerSuccessfulAnswer: number,
- *   latestAnswer: {
- *     retrievedChunkCount: number,
- *     includedChunkCount: number,
- *     evidenceCharCount: number,
- *     promptTokens: number,
- *     completionTokens: number,
- *     totalTokens: number,
- *     createdAt: string
- *   } | null
- * }}
- */
 export function getUsageSummary(db) {
   const totals = db.prepare(`
     SELECT

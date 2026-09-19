@@ -1,14 +1,6 @@
-/**
- * Memory with a Receipt — Evidence Desk Frontend
- * Editorial interface: warm paper palette, serif typography, and provenance graph
- */
-
 let cy = null;
 let currentCitations = [];
 
-/**
- * Maps raw database event types to readable human product terms.
- */
 function formatReadableEventType(rawType) {
   if (!rawType) return 'Note';
   const t = rawType.toLowerCase();
@@ -20,9 +12,6 @@ function formatReadableEventType(rawType) {
   return t.charAt(0).toUpperCase() + t.slice(1).replace(/_/g, ' ');
 }
 
-/**
- * Formats ISO date string into readable Month Year (e.g., "March 2024").
- */
 function formatReadableDate(dateStr) {
   if (!dateStr || typeof dateStr !== 'string') return '';
   const trimmed = dateStr.trim();
@@ -40,9 +29,6 @@ function formatReadableDate(dateStr) {
   return trimmed;
 }
 
-/**
- * Computes 2-letter initials for a person name (e.g. "Ana Duarte" -> "AD").
- */
 function getPersonInitials(name) {
   if (!name || typeof name !== 'string') return 'P';
   const parts = name.trim().split(/\s+/);
@@ -50,12 +36,6 @@ function getPersonInitials(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-/**
- * Renders data-minimisation and token metrics in the Data Use disclosure panel.
- * Uses explicit numeric verification (Number.isFinite) to ensure 0 is treated as valid.
- *
- * @param {object|null|undefined} metrics
- */
 function renderDataUseMetrics(metrics) {
   const duSearched = document.getElementById('du-searched-count');
   const duIncluded = document.getElementById('du-included-count');
@@ -107,7 +87,6 @@ function renderDataUseMetrics(metrics) {
   }
 }
 
-// Initialize Cytoscape container with paper-trail shapes and oxblood accent
 function initCytoscape() {
   if (typeof cytoscape === 'undefined') {
     console.error('Cytoscape library not loaded.');
@@ -119,7 +98,7 @@ function initCytoscape() {
     boxSelectionEnabled: false,
     autounselectify: false,
     style: [
-      // Base Node Style (Graphite & Warm Paper)
+
       {
         selector: 'node',
         style: {
@@ -136,7 +115,7 @@ function initCytoscape() {
           'transition-duration': '0.15s',
         },
       },
-      // Decision event nodes
+
       {
         selector: 'node[nodeType = "event"]',
         style: {
@@ -155,7 +134,7 @@ function initCytoscape() {
           'text-max-width': '120px',
         },
       },
-      // Source document nodes
+
       {
         selector: 'node[nodeType = "document"]',
         style: {
@@ -174,7 +153,7 @@ function initCytoscape() {
           'text-max-width': '105px',
         },
       },
-      // Person / Actor nodes
+
       {
         selector: 'node[nodeType = "person"]',
         style: {
@@ -192,7 +171,7 @@ function initCytoscape() {
           'text-max-width': '95px',
         },
       },
-      // Hovered State for Nodes
+
       {
         selector: 'node.hovered, node:hover',
         style: {
@@ -210,7 +189,7 @@ function initCytoscape() {
           'z-index': 99,
         },
       },
-      // Highlighted State for Nodes (Selected evidence path in oxblood red)
+
       {
         selector: 'node.highlighted',
         style: {
@@ -225,14 +204,14 @@ function initCytoscape() {
           'z-index': 100,
         },
       },
-      // Dimmed State for Nodes
+
       {
         selector: 'node.dimmed',
         style: {
           'opacity': 0.18,
         },
       },
-      // Base Edge Style (Thin, quiet, no arrowheads)
+
       {
         selector: 'edge',
         style: {
@@ -246,7 +225,7 @@ function initCytoscape() {
           'transition-duration': '0.15s',
         },
       },
-      // Highlighted Edge (Restrained oxblood red, reveals relationship label)
+
       {
         selector: 'edge.highlighted',
         style: {
@@ -265,7 +244,7 @@ function initCytoscape() {
           'text-rotation': 'autorotate',
         },
       },
-      // Dimmed Edge
+
       {
         selector: 'edge.dimmed',
         style: {
@@ -279,7 +258,6 @@ function initCytoscape() {
     },
   });
 
-  // Node selection handler
   cy.on('tap', 'node', (evt) => {
     const node = evt.target;
     const nodeType = node.data('nodeType');
@@ -288,7 +266,7 @@ function initCytoscape() {
       highlightEvidencePath(rid);
       highlightReceiptCard(rid);
     } else {
-      // Document or person: highlight its closed neighborhood
+
       cy.elements().removeClass('highlighted dimmed');
       const closed = node.closedNeighborhood();
       closed.nodes().addClass('highlighted');
@@ -307,14 +285,12 @@ function initCytoscape() {
     }
   });
 
-  // Canvas background tap resets to quiet default state
   cy.on('tap', (evt) => {
     if (evt.target === cy) {
       resetHighlight();
     }
   });
 
-  // Hover handlers for document and person labels
   cy.on('mouseover', 'node', (evt) => {
     evt.target.addClass('hovered');
   });
@@ -323,12 +299,6 @@ function initCytoscape() {
   });
 }
 
-/**
- * Three-column evidence layout:
- * - Column 1 (Left): Source documents
- * - Column 2 (Middle): Decision events
- * - Column 3 (Right): People / Actors
- */
 function applyThreeColumnEvidenceLayout(cyInstance) {
   if (!cyInstance) return;
 
@@ -338,7 +308,6 @@ function applyThreeColumnEvidenceLayout(cyInstance) {
 
   if (cyInstance.nodes().length === 0) return;
 
-  // Sort events predictably by receipt/event ID
   const sortedEvents = eventNodes.toArray().sort((a, b) => {
     return a.id().localeCompare(b.id(), undefined, { numeric: true });
   });
@@ -348,7 +317,6 @@ function applyThreeColumnEvidenceLayout(cyInstance) {
     eventIndexMap.set(ev.id(), idx);
   });
 
-  // Sort documents by average connected event index to minimize crossing lines
   const sortedDocs = docNodes.toArray().sort((a, b) => {
     const connA = a.neighborhood('node[nodeType = "event"]');
     const connB = b.neighborhood('node[nodeType = "event"]');
@@ -361,7 +329,6 @@ function applyThreeColumnEvidenceLayout(cyInstance) {
     return avgA - avgB;
   });
 
-  // Sort people by average connected event index to minimize crossing lines
   const sortedPersons = personNodes.toArray().sort((a, b) => {
     const connA = a.neighborhood('node[nodeType = "event"]');
     const connB = b.neighborhood('node[nodeType = "event"]');
@@ -374,12 +341,10 @@ function applyThreeColumnEvidenceLayout(cyInstance) {
     return avgA - avgB;
   });
 
-  // Column X Coordinates
   const X_DOC = 75;
   const X_EVENT = 310;
   const X_PERSON = 540;
 
-  // Vertical steps and centering
   const Y_EVENT_STEP = 72;
   const numEvents = Math.max(1, sortedEvents.length);
   const numDocs = Math.max(1, sortedDocs.length);
@@ -395,7 +360,6 @@ function applyThreeColumnEvidenceLayout(cyInstance) {
 
   const posMap = {};
 
-  // Assign Column 1 positions (Source Documents)
   sortedDocs.forEach((node, i) => {
     const startY = (maxHeight - totalDocHeight) / 2 + 50;
     posMap[node.id()] = {
@@ -404,7 +368,6 @@ function applyThreeColumnEvidenceLayout(cyInstance) {
     };
   });
 
-  // Assign Column 2 positions (Decision Events)
   sortedEvents.forEach((node, i) => {
     const startY = (maxHeight - totalEventHeight) / 2 + 50;
     posMap[node.id()] = {
@@ -413,7 +376,6 @@ function applyThreeColumnEvidenceLayout(cyInstance) {
     };
   });
 
-  // Assign Column 3 positions (People / Actors)
   sortedPersons.forEach((node, i) => {
     const startY = (maxHeight - totalPersonHeight) / 2 + 50;
     posMap[node.id()] = {
@@ -422,7 +384,6 @@ function applyThreeColumnEvidenceLayout(cyInstance) {
     };
   });
 
-  // Run preset layout
   const layout = cyInstance.layout({
     name: 'preset',
     positions: (node) => posMap[node.id()] || { x: X_EVENT, y: 50 },
@@ -435,7 +396,6 @@ function applyThreeColumnEvidenceLayout(cyInstance) {
   layout.run();
 }
 
-// Render graph elements from server response
 function renderGraph(graphData) {
   const emptyState = document.getElementById('graph-empty-state');
   const nodeCountBadge = document.getElementById('graph-node-count');
@@ -456,7 +416,6 @@ function renderGraph(graphData) {
   emptyState.classList.add('hidden');
   nodeCountBadge.textContent = `${rawNodes.length} items • ${edges.length} connections`;
 
-  // Clean labels for human presentation (paper trail style)
   const nodes = rawNodes.map((node) => {
     if (!node.data) return node;
 
@@ -507,11 +466,9 @@ function renderGraph(graphData) {
   cy.elements().remove();
   cy.add([...nodes, ...edges]);
 
-  // Apply three-column evidence layout
   applyThreeColumnEvidenceLayout(cy);
 }
 
-// Update the archival annotation quote strip at the bottom of the evidence map
 function updateArchivalCaption(receiptId) {
   const strip = document.getElementById('graph-caption-strip');
   const captionText = document.getElementById('graph-caption-text');
@@ -527,7 +484,6 @@ function updateArchivalCaption(receiptId) {
   }
 }
 
-// Highlight corresponding receipt card on node click
 function highlightReceiptCard(nodeId) {
   document.querySelectorAll('.receipt-card').forEach((card) => {
     const isMatch = card.dataset.receiptId === nodeId;
@@ -539,7 +495,6 @@ function highlightReceiptCard(nodeId) {
   updateArchivalCaption(nodeId);
 }
 
-// Highlight connected evidence path for given receipt IDs
 function highlightEvidencePath(targetIds) {
   if (!cy) return;
   const idArray = (Array.isArray(targetIds) ? targetIds : [targetIds]).filter(Boolean);
@@ -549,7 +504,6 @@ function highlightEvidencePath(targetIds) {
     return;
   }
 
-  // Find target nodes and closed neighborhoods
   let targetNodes = cy.collection();
   idArray.forEach((id) => {
     const node = cy.getElementById(id);
@@ -564,27 +518,22 @@ function highlightEvidencePath(targetIds) {
     return;
   }
 
-  // Clear previous state
   cy.elements().removeClass('highlighted dimmed');
 
-  // Highlight active path; dim everything else
   targetNodes.nodes().addClass('highlighted');
   targetNodes.edges().addClass('highlighted');
   cy.elements().not(targetNodes).addClass('dimmed');
 
-  // Highlight matching receipt cards
   document.querySelectorAll('.receipt-card').forEach((card) => {
     const isMatch = idArray.includes(card.dataset.receiptId);
     card.classList.toggle('active-receipt', isMatch);
   });
 
-  // Update archival caption
   if (idArray.length > 0) {
     updateArchivalCaption(idArray[0]);
   }
 }
 
-// Reset graph and list highlights to quiet default state
 function resetHighlight() {
   if (!cy) return;
   cy.elements().removeClass('highlighted dimmed hovered');
@@ -598,7 +547,6 @@ function resetHighlight() {
   if (strip) strip.classList.add('hidden');
 }
 
-// Execute question query
 async function handleAskQuestion(question) {
   const questionInput = document.getElementById('question-input');
   const btnAsk = document.getElementById('btn-ask');
@@ -633,7 +581,6 @@ async function handleAskQuestion(question) {
     const data = body.data;
     currentCitations = Array.isArray(data.citations) ? data.citations : [];
 
-    // Status indicator
     statusPill.className = `status-indicator ${data.status}`;
     if (data.status === 'answered') {
       statusPill.textContent = 'Supported answer';
@@ -655,11 +602,9 @@ async function handleAskQuestion(question) {
       reasoningBox.classList.add('hidden');
     }
 
-    // Update Data Use Metrics with explicit finite-number checks
     const metrics = data?.metrics || body?.metrics;
     renderDataUseMetrics(metrics);
 
-    // Claims
     claimsList.innerHTML = '';
     const claims = Array.isArray(data.claims) ? data.claims : [];
     if (claims.length === 0) {
@@ -672,7 +617,6 @@ async function handleAskQuestion(question) {
         const rids = claim.receipt_ids || [];
         const matchedCitations = currentCitations.filter((c) => rids.includes(c.receiptId));
 
-        // Find date if available
         let claimDate = '';
         for (const cit of matchedCitations) {
           if (cit.eventDate) {
@@ -697,7 +641,6 @@ async function handleAskQuestion(question) {
           ? `${claimDate} · ${chronologyStatus}`
           : (chronologyStatus.charAt(0).toUpperCase() + chronologyStatus.slice(1));
 
-        // Source numbering e.g. "Source 01" or "Sources 01, 02"
         const citationNumbers = matchedCitations
           .map((c) => (c.citationNumber < 10 ? `0${c.citationNumber}` : `${c.citationNumber}`))
           .sort();
@@ -723,7 +666,6 @@ async function handleAskQuestion(question) {
           <div class="claim-source-ref">${escapeHtml(sourceLabel)}</div>
         `;
 
-        // Click claim to highlight all its supported receipts in graph and cards
         item.addEventListener('click', () => {
           document.querySelectorAll('.claim-item').forEach((ci) => ci.classList.remove('active-claim'));
           item.classList.add('active-claim');
@@ -737,7 +679,6 @@ async function handleAskQuestion(question) {
       });
     }
 
-    // Sources list
     receiptsList.innerHTML = '';
     if (currentCitations.length === 0) {
       receiptsList.innerHTML = '<div class="empty-hint">No sources cited.</div>';
@@ -775,7 +716,6 @@ async function handleAskQuestion(question) {
           </details>
         `;
 
-        // Hover & click highlight connected evidence path
         card.addEventListener('mouseenter', () => highlightEvidencePath(cit.receiptId));
         card.addEventListener('click', () => {
           highlightEvidencePath(cit.receiptId);
@@ -786,7 +726,6 @@ async function handleAskQuestion(question) {
       });
     }
 
-    // Update focused evidence graph
     renderGraph(data.graph);
 
     answerContainer.classList.remove('hidden');
@@ -798,7 +737,6 @@ async function handleAskQuestion(question) {
   }
 }
 
-// Handle deletion preview
 async function handleDeletionPreview() {
   const personInput = document.getElementById('deletion-person-input');
   const previewBox = document.getElementById('deletion-preview-results');
@@ -910,7 +848,6 @@ async function handleDeletionPreview() {
   }
 }
 
-// Handle confirmed deletion
 async function handleDeletionConfirm() {
   const personInput = document.getElementById('deletion-person-input');
   const reportBox = document.getElementById('deletion-report');
@@ -960,7 +897,6 @@ async function handleDeletionConfirm() {
   }
 }
 
-// Utility to escape HTML strings safely
 function escapeHtml(str) {
   if (typeof str !== 'string') return '';
   return str
@@ -971,11 +907,9 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
-// DOM Setup
 document.addEventListener('DOMContentLoaded', () => {
   initCytoscape();
 
-  // Form submit
   const qaForm = document.getElementById('qa-form');
   const questionInput = document.getElementById('question-input');
   qaForm.addEventListener('submit', (e) => {
@@ -983,7 +917,6 @@ document.addEventListener('DOMContentLoaded', () => {
     handleAskQuestion(questionInput.value);
   });
 
-  // Example text links
   document.querySelectorAll('.chip-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const q = btn.dataset.query;
@@ -991,7 +924,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Graph toolbar buttons
   document.getElementById('btn-fit-graph')?.addEventListener('click', () => {
     if (cy) cy.fit(undefined, 30);
   });
@@ -1002,7 +934,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Deletion buttons
   document.getElementById('btn-preview-deletion')?.addEventListener('click', handleDeletionPreview);
   document.getElementById('btn-confirm-deletion')?.addEventListener('click', handleDeletionConfirm);
 });

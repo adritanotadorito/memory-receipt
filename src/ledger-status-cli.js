@@ -1,9 +1,6 @@
 #!/usr/bin/env node
 import { initDatabase } from './db.js';
 
-/**
- * CLI script to display summary statistics of the Decision Ledger.
- */
 function main() {
   const dbPath = process.env.DB_PATH || 'data/memory.db';
   const db = initDatabase(dbPath);
