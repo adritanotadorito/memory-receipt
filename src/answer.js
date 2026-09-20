@@ -1,6 +1,7 @@
 import { hybridSearch } from './hybrid.js';
 import { chatCompletion } from './llm.js';
 import { logLlmUsage } from './usage.js';
+import { createPiiShieldContext, redactPii } from './pii-shield.js';
 
 export const VALID_STATUSES = new Set(['answered', 'conflicting_evidence', 'insufficient_evidence']);
 export const VALID_CURRENCIES = new Set(['current', 'historical', 'uncertain']);
@@ -158,6 +159,9 @@ export async function answerQuestion(db, question, llm = chatCompletion, options
         promptTokens: 0,
         completionTokens: 0,
         totalTokens: 0,
+        emailsRedacted: 0,
+        phonesRedacted: 0,
+        totalDirectIdentifiersRedacted: 0,
       },
     };
   }
@@ -288,15 +292,20 @@ ${text}
 """`;
   }).join('\n\n---\n\n');
 
+  const piiContext = createPiiShieldContext();
+  const redactedQuestion = redactPii(question.trim(), piiContext).text;
+  const redactedReceipts = redactPii(receiptsFormatted, piiContext).text;
+  const redactedChunks = redactPii(chunksFormatted, piiContext).text;
+
   const evidenceCharCount = receiptsFormatted.length + chunksFormatted.length;
 
-  const userPrompt = `Question: "${question.trim()}"
+  const userPrompt = `Question: "${redactedQuestion}"
 
 === VERIFIED DECISION RECEIPTS ===
-${receiptsFormatted}
+${redactedReceipts}
 
 === SUPPORTING SOURCE DOCUMENTS ===
-${chunksFormatted}
+${redactedChunks}
 
 Analyze the verified decision receipts above and synthesize a strictly grounded, concise answer matching the requested JSON schema. Every claim MUST cite one or more valid Receipt IDs (e.g. ["event-123"]).`;
 
@@ -363,6 +372,9 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
         promptTokens: 0,
         completionTokens: 0,
         totalTokens: 0,
+        emailsRedacted: piiContext.emailsRedacted,
+        phonesRedacted: piiContext.phonesRedacted,
+        totalDirectIdentifiersRedacted: piiContext.emailsRedacted + piiContext.phonesRedacted,
       },
     };
   }
@@ -401,6 +413,9 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
         promptTokens,
         completionTokens,
         totalTokens,
+        emailsRedacted: piiContext.emailsRedacted,
+        phonesRedacted: piiContext.phonesRedacted,
+        totalDirectIdentifiersRedacted: piiContext.emailsRedacted + piiContext.phonesRedacted,
       },
     };
   }
@@ -502,6 +517,9 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
           promptTokens,
           completionTokens,
           totalTokens,
+          emailsRedacted: piiContext.emailsRedacted,
+          phonesRedacted: piiContext.phonesRedacted,
+          totalDirectIdentifiersRedacted: piiContext.emailsRedacted + piiContext.phonesRedacted,
         },
       };
     }
@@ -522,6 +540,9 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
         promptTokens,
         completionTokens,
         totalTokens,
+        emailsRedacted: piiContext.emailsRedacted,
+        phonesRedacted: piiContext.phonesRedacted,
+        totalDirectIdentifiersRedacted: piiContext.emailsRedacted + piiContext.phonesRedacted,
       },
     };
   }
@@ -579,6 +600,9 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
       promptTokens,
       completionTokens,
       totalTokens,
+      emailsRedacted: piiContext.emailsRedacted,
+      phonesRedacted: piiContext.phonesRedacted,
+      totalDirectIdentifiersRedacted: piiContext.emailsRedacted + piiContext.phonesRedacted,
     },
   };
 }

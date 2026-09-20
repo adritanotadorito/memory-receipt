@@ -47,6 +47,7 @@ function renderDataUseMetrics(metrics) {
   const duTotal = document.getElementById('du-metric-total');
   const duEvidenceChunks = document.getElementById('du-metric-evidence-chunks');
   const duEvidenceChars = document.getElementById('du-metric-evidence-chars');
+  const duPiiShield = document.getElementById('du-metric-pii-shield');
 
   const hasValidMetrics = metrics && typeof metrics === 'object' && (
     Number.isFinite(metrics.totalTokens) ||
@@ -64,6 +65,7 @@ function renderDataUseMetrics(metrics) {
     const promptTokens = Number.isFinite(metrics.promptTokens) ? metrics.promptTokens.toLocaleString() : '0';
     const completionTokens = Number.isFinite(metrics.completionTokens) ? metrics.completionTokens.toLocaleString() : '0';
     const totalTokens = Number.isFinite(metrics.totalTokens) ? metrics.totalTokens.toLocaleString() : '0';
+    const totalRedacted = Number(metrics?.totalDirectIdentifiersRedacted || 0);
 
     if (duSearched) duSearched.textContent = searchedCount;
     if (duIncluded) duIncluded.textContent = includedCount;
@@ -75,12 +77,22 @@ function renderDataUseMetrics(metrics) {
     if (duEvidenceChunks) duEvidenceChunks.textContent = `Selected evidence: ${includedCount} of ${searchedCount} locally retrieved excerpts`;
     if (duEvidenceChars) duEvidenceChars.textContent = `Evidence supplied for synthesis: ${charCount} characters`;
 
+    if (duPiiShield) {
+      if (totalRedacted > 0) {
+        const word = totalRedacted === 1 ? 'direct contact identifier' : 'direct contact identifiers';
+        duPiiShield.textContent = `PII Shield: ${totalRedacted} ${word} removed before external synthesis.`;
+      } else {
+        duPiiShield.textContent = 'PII Shield: no direct contact identifiers detected in this request.';
+      }
+    }
+
     if (duMetricsBody) duMetricsBody.classList.remove('hidden');
     if (duMetricsFallback) duMetricsFallback.classList.add('hidden');
   } else {
     if (duSearched) duSearched.textContent = '0';
     if (duIncluded) duIncluded.textContent = '0';
     if (duChar) duChar.textContent = '0';
+    if (duPiiShield) duPiiShield.textContent = 'PII Shield: no direct contact identifiers detected in this request.';
 
     if (duMetricsBody) duMetricsBody.classList.add('hidden');
     if (duMetricsFallback) duMetricsFallback.classList.remove('hidden');
