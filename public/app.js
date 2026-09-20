@@ -48,6 +48,7 @@ function renderDataUseMetrics(metrics) {
   const duEvidenceChunks = document.getElementById('du-metric-evidence-chunks');
   const duEvidenceChars = document.getElementById('du-metric-evidence-chars');
   const duPiiShield = document.getElementById('du-metric-pii-shield');
+  const duCredentialShield = document.getElementById('du-metric-credential-shield');
 
   const hasValidMetrics = metrics && typeof metrics === 'object' && (
     Number.isFinite(metrics.totalTokens) ||
@@ -66,6 +67,7 @@ function renderDataUseMetrics(metrics) {
     const completionTokens = Number.isFinite(metrics.completionTokens) ? metrics.completionTokens.toLocaleString() : '0';
     const totalTokens = Number.isFinite(metrics.totalTokens) ? metrics.totalTokens.toLocaleString() : '0';
     const totalRedacted = Number(metrics?.totalDirectIdentifiersRedacted || 0);
+    const credsRedacted = Number(metrics?.credentialsRedacted || 0);
 
     if (duSearched) duSearched.textContent = searchedCount;
     if (duIncluded) duIncluded.textContent = includedCount;
@@ -86,6 +88,15 @@ function renderDataUseMetrics(metrics) {
       }
     }
 
+    if (duCredentialShield) {
+      if (credsRedacted > 0) {
+        duCredentialShield.textContent = 'Credential Shield: sensitive credentials redacted from this response.';
+        duCredentialShield.classList.remove('hidden');
+      } else {
+        duCredentialShield.classList.add('hidden');
+      }
+    }
+
     if (duMetricsBody) duMetricsBody.classList.remove('hidden');
     if (duMetricsFallback) duMetricsFallback.classList.add('hidden');
   } else {
@@ -93,6 +104,7 @@ function renderDataUseMetrics(metrics) {
     if (duIncluded) duIncluded.textContent = '0';
     if (duChar) duChar.textContent = '0';
     if (duPiiShield) duPiiShield.textContent = 'PII Shield: no direct contact identifiers detected in this request.';
+    if (duCredentialShield) duCredentialShield.classList.add('hidden');
 
     if (duMetricsBody) duMetricsBody.classList.add('hidden');
     if (duMetricsFallback) duMetricsFallback.classList.remove('hidden');

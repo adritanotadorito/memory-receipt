@@ -5,7 +5,12 @@ import path from 'node:path';
 import os from 'node:os';
 
 import { initDatabase } from '../src/db.js';
-import { createPiiShieldContext, redactPii } from '../src/pii-shield.js';
+import {
+  createPiiShieldContext,
+  redactPii,
+  redactCredentials,
+  redactPiiAndCredentials,
+} from '../src/pii-shield.js';
 import { answerQuestion } from '../src/answer.js';
 import { createDecisionEvent } from '../src/ledger.js';
 
@@ -49,6 +54,46 @@ Decision: Phase 2 go-live is confirmed for June 1st.`;
   return { db, rawChunkText, eventId: event.id };
 }
 
+function setupCredentialsTestDb() {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cred-test-'));
+  const dbPath = path.join(tmpDir, 'test.db');
+  const db = initDatabase(dbPath);
+
+  db.prepare(`
+    INSERT INTO documents (id, relative_path, filename, category, imported_at, content_hash, total_lines)
+    VALUES ('doc_uat', 'emails/02_fresh-uat-environment-access.txt', '02_fresh-uat-environment-access.txt', 'email', '2025-10-07', 'h_uat', 30)
+  `).run();
+
+  const rawChunkText = `From: Nadia Haddad <n.haddad@relexsolutions.example>
+To: Sofia Almeida <sofia.almeida@acme-org.example>
+Subject: Re: Fresh UAT environment - access
+
+UserName: SofAlme
+Password: SofAlme2025!
+
+Please change it after first login.`;
+
+  db.prepare(`
+    INSERT INTO chunks (id, document_id, chunk_index, chunk_text, start_line, end_line, source_location, created_at)
+    VALUES ('doc_uat_c0001', 'doc_uat', 0, ?, 45, 60, 'emails/02_fresh-uat-environment-access.txt, lines 45-60', '2025-10-07')
+  `).run(rawChunkText);
+
+  const event = createDecisionEvent(db, {
+    chunk_id: 'doc_uat_c0001',
+    event_type: 'action',
+    topic: 'Fresh UAT environment user creation',
+    value: 'UserName: SofAlme Password: SofAlme2025!',
+    actor_name: 'Nadia Haddad',
+    actor_organization: 'RELEX',
+    event_date: '2025-10-07',
+    exact_quote: 'UserName: SofAlme\nPassword: SofAlme2025!',
+    confidence: 0.95,
+    verification_status: 'supported',
+  });
+
+  return { db, rawChunkText, eventId: event.id };
+}
+
 test('1. email addresses are consistently replaced with stable [EMAIL_n] placeholders', () => {
   const context = createPiiShieldContext();
   const input = 'Contact alice@example.com or bob@partner.org. Later, follow up with alice@example.com.';
@@ -71,37 +116,34 @@ test('2. phone numbers (domestic & international) are consistently replaced with
   assert.equal(result.totalDirectIdentifiersRedacted, 4);
 });
 
-test('3. dates, line ranges, times, and entity IDs are not falsely redacted as phone numbers', () => {
+test('3. dates, line ranges, times, and entity IDs are not falsely redacted as phone numbers or credentials', () => {
   const context = createPiiShieldContext();
-  const input = 'On 2024-03-15 at 14:30, check event-123 in doc_01 lines 1-30 with 100% confidence.';
-  const result = redactPii(input, context);
+  const input = 'On 2024-03-15 at 14:30, check event-123 in doc_01 lines 1-30 with 100% confidence. I reset my password and it works.';
+  const result = redactPiiAndCredentials(input, context);
 
   assert.equal(result.text, input);
   assert.equal(result.phonesRedacted, 0);
   assert.equal(result.emailsRedacted, 0);
+  assert.equal(result.credentialsRedacted, 0);
   assert.equal(result.totalDirectIdentifiersRedacted, 0);
 });
 
 test('4. original local chunks in SQLite remain byte-for-byte untouched', async () => {
   const { db, rawChunkText } = setupPiiTestDb();
 
-  const capturedPrompts = [];
-  const mockLlm = async (messages) => {
-    capturedPrompts.push(messages);
-    return {
-      text: JSON.stringify({
-        status: 'answered',
-        answer: 'Phase 2 go-live is confirmed for June 1st.',
-        claims: [{
-          text: 'Phase 2 go-live is confirmed for June 1st.',
-          receipt_ids: ['event-1'],
-          currency: 'current',
-        }],
-        reasoning_note: null,
-      }),
-      usage: { prompt_tokens: 120, completion_tokens: 45, total_tokens: 165 },
-    };
-  };
+  const mockLlm = async () => ({
+    text: JSON.stringify({
+      status: 'answered',
+      answer: 'Phase 2 go-live is confirmed for June 1st.',
+      claims: [{
+        text: 'Phase 2 go-live is confirmed for June 1st.',
+        receipt_ids: ['event-1'],
+        currency: 'current',
+      }],
+      reasoning_note: null,
+    }),
+    usage: { prompt_tokens: 120, completion_tokens: 45, total_tokens: 165 },
+  });
 
   const answerResult = await answerQuestion(
     db,
@@ -209,4 +251,83 @@ test('7. answer response never exposes or leaks internal emailMap or phoneMap', 
   assert.equal(typeof res.metrics.emailsRedacted, 'number');
   assert.equal(typeof res.metrics.phonesRedacted, 'number');
   assert.equal(typeof res.metrics.totalDirectIdentifiersRedacted, 'number');
+  assert.equal(typeof res.metrics.credentialsRedacted, 'number');
+});
+
+test('8. Credential Shield masks credential pairs (username/password) and standalone secrets', () => {
+  const context = createPiiShieldContext();
+  const pairText = 'Access details: UserName: SofAlme\nPassword: SofAlme2025!\nPlease login.';
+  const pairResult = redactCredentials(pairText, context);
+
+  assert.equal(pairResult.text, 'Access details: [CREDENTIALS_REDACTED]\nPlease login.');
+  assert.equal(pairResult.credentialsRedacted, 1);
+
+  const standaloneText = 'Use api_key: sk-1234567890abcdef with password: SecretPass123!';
+  const standaloneResult = redactCredentials(standaloneText, context);
+
+  assert.equal(standaloneResult.text, 'Use [CREDENTIAL_REDACTED] with [CREDENTIAL_REDACTED]');
+  assert.equal(standaloneResult.credentialsRedacted, 3);
+});
+
+test('9. SofAlme2025! never appears in serialized outbound OpenAI messages', async () => {
+  const { db } = setupCredentialsTestDb();
+
+  let outboundMessages = null;
+  const mockLlm = async (messages) => {
+    outboundMessages = messages;
+    return {
+      text: JSON.stringify({
+        status: 'answered',
+        answer: 'The credentials shared were username SofAlme and password SofAlme2025!.',
+        claims: [{
+          text: 'The credentials shared were username SofAlme and password SofAlme2025!.',
+          receipt_ids: ['event-1'],
+          currency: 'current',
+        }],
+        reasoning_note: null,
+      }),
+      usage: { prompt_tokens: 90, completion_tokens: 35, total_tokens: 125 },
+    };
+  };
+
+  const res = await answerQuestion(db, 'What credentials were shared for fresh UAT environment access?', mockLlm);
+
+  assert.ok(outboundMessages);
+  const serializedOutbound = JSON.stringify(outboundMessages);
+
+  assert.ok(!serializedOutbound.includes('SofAlme2025!'));
+  assert.ok(serializedOutbound.includes('[CREDENTIALS_REDACTED]') || serializedOutbound.includes('[CREDENTIAL_REDACTED]'));
+  assert.ok(!res.answer.includes('SofAlme2025!'));
+  assert.ok(!res.claims[0].text.includes('SofAlme2025!'));
+  assert.ok(!res.claims[0].evidence_quote.includes('SofAlme2025!'));
+  assert.ok(!res.citations[0].exactQuote.includes('SofAlme2025!'));
+
+  assert.equal(res.metrics.credentialsRedacted >= 1, true);
+});
+
+test('10. Local SQLite database remains unchanged while displayed quotes are sanitized', async () => {
+  const { db, rawChunkText } = setupCredentialsTestDb();
+
+  const mockLlm = async () => ({
+    text: JSON.stringify({
+      status: 'answered',
+      answer: 'Access was created for user SofAlme.',
+      claims: [{
+        text: 'Access was created for user SofAlme.',
+        receipt_ids: ['event-1'],
+        currency: 'current',
+      }],
+      reasoning_note: null,
+    }),
+    usage: { prompt_tokens: 70, completion_tokens: 20, total_tokens: 90 },
+  });
+
+  const res = await answerQuestion(db, 'What user was created for UAT?', mockLlm);
+
+  const chunkInDb = db.prepare('SELECT chunk_text FROM chunks WHERE id = ?').get('doc_uat_c0001');
+  assert.equal(chunkInDb.chunk_text, rawChunkText);
+  assert.ok(chunkInDb.chunk_text.includes('SofAlme2025!'));
+
+  assert.ok(!res.citations[0].exactQuote.includes('SofAlme2025!'));
+  assert.equal(res.citations[0].sourceLocation, 'emails/02_fresh-uat-environment-access.txt, lines 45-60');
 });

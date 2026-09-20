@@ -1,7 +1,12 @@
 import { hybridSearch } from './hybrid.js';
 import { chatCompletion } from './llm.js';
 import { logLlmUsage } from './usage.js';
-import { createPiiShieldContext, redactPii } from './pii-shield.js';
+import {
+  createPiiShieldContext,
+  redactPii,
+  redactCredentials,
+  redactPiiAndCredentials,
+} from './pii-shield.js';
 
 export const VALID_STATUSES = new Set(['answered', 'conflicting_evidence', 'insufficient_evidence']);
 export const VALID_CURRENCIES = new Set(['current', 'historical', 'uncertain']);
@@ -162,6 +167,7 @@ export async function answerQuestion(db, question, llm = chatCompletion, options
         emailsRedacted: 0,
         phonesRedacted: 0,
         totalDirectIdentifiersRedacted: 0,
+        credentialsRedacted: 0,
       },
     };
   }
@@ -293,9 +299,9 @@ ${text}
   }).join('\n\n---\n\n');
 
   const piiContext = createPiiShieldContext();
-  const redactedQuestion = redactPii(question.trim(), piiContext).text;
-  const redactedReceipts = redactPii(receiptsFormatted, piiContext).text;
-  const redactedChunks = redactPii(chunksFormatted, piiContext).text;
+  const redactedQuestion = redactPiiAndCredentials(question.trim(), piiContext).text;
+  const redactedReceipts = redactPiiAndCredentials(receiptsFormatted, piiContext).text;
+  const redactedChunks = redactPiiAndCredentials(chunksFormatted, piiContext).text;
 
   const evidenceCharCount = receiptsFormatted.length + chunksFormatted.length;
 
@@ -375,6 +381,7 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
         emailsRedacted: piiContext.emailsRedacted,
         phonesRedacted: piiContext.phonesRedacted,
         totalDirectIdentifiersRedacted: piiContext.emailsRedacted + piiContext.phonesRedacted,
+        credentialsRedacted: piiContext.credentialsRedacted,
       },
     };
   }
@@ -416,6 +423,7 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
         emailsRedacted: piiContext.emailsRedacted,
         phonesRedacted: piiContext.phonesRedacted,
         totalDirectIdentifiersRedacted: piiContext.emailsRedacted + piiContext.phonesRedacted,
+        credentialsRedacted: piiContext.credentialsRedacted,
       },
     };
   }
@@ -470,12 +478,15 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
       citedReceiptSet.add(r.receiptId);
     });
 
+    const sanitizedClaimText = redactCredentials(claim.text.trim(), piiContext).text;
+    const sanitizedQuotes = verifiedQuotes.map((q) => redactCredentials(q, piiContext).text);
+
     validatedClaims.push({
-      text: claim.text.trim(),
+      text: sanitizedClaimText,
       receipt_ids: Array.from(new Set(verifiedReceiptIds)),
       evidence_ids: Array.from(new Set(verifiedReceiptIds)),
-      evidence_quotes: Array.from(new Set(verifiedQuotes)),
-      evidence_quote: verifiedQuotes[0] || '',
+      evidence_quotes: Array.from(new Set(sanitizedQuotes)),
+      evidence_quote: sanitizedQuotes[0] || '',
       receipts: resolvedReceipts,
       currency,
     });
@@ -498,6 +509,21 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
       });
     } catch { }
 
+    const sanitizedReceipts = allReceipts.map((r) => ({
+      ...r,
+      exactQuote: redactCredentials(r.exactQuote, piiContext).text,
+      value: r.value ? redactCredentials(r.value, piiContext).text : null,
+    }));
+    const sanitizedEvents = eventRows.map((ev) => ({
+      ...ev,
+      exact_quote: redactCredentials(ev.exact_quote, piiContext).text,
+      value: ev.value ? redactCredentials(ev.value, piiContext).text : null,
+    }));
+    const sanitizedRetrieval = includedHits.map((h) => ({
+      ...h,
+      exactSourceText: redactCredentials(h.exactSourceText || '', piiContext).text,
+    }));
+
     if (parsed.status === 'answered') {
       return {
         status: 'insufficient_evidence',
@@ -507,9 +533,9 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
           ? 'All proposed claims referenced invalid receipt IDs and were dropped.'
           : 'Model generated zero verifiable claims.',
         citations: [],
-        events: eventRows,
-        receipts: allReceipts,
-        retrieval: includedHits,
+        events: sanitizedEvents,
+        receipts: sanitizedReceipts,
+        retrieval: sanitizedRetrieval,
         metrics: {
           retrievedChunkCount,
           includedChunkCount,
@@ -520,19 +546,20 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
           emailsRedacted: piiContext.emailsRedacted,
           phonesRedacted: piiContext.phonesRedacted,
           totalDirectIdentifiersRedacted: piiContext.emailsRedacted + piiContext.phonesRedacted,
+          credentialsRedacted: piiContext.credentialsRedacted,
         },
       };
     }
 
     return {
       status: parsed.status,
-      answer: parsed.answer.trim() || 'Insufficient verified evidence found in the corpus to answer this question.',
+      answer: redactCredentials(parsed.answer.trim(), piiContext).text || 'Insufficient verified evidence found in the corpus to answer this question.',
       claims: [],
-      reasoningNote: parsed.reasoning_note || null,
+      reasoningNote: parsed.reasoning_note ? redactCredentials(parsed.reasoning_note, piiContext).text : null,
       citations: [],
-      events: eventRows,
-      receipts: allReceipts,
-      retrieval: includedHits,
+      events: sanitizedEvents,
+      receipts: sanitizedReceipts,
+      retrieval: sanitizedRetrieval,
       metrics: {
         retrievedChunkCount,
         includedChunkCount,
@@ -543,6 +570,7 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
         emailsRedacted: piiContext.emailsRedacted,
         phonesRedacted: piiContext.phonesRedacted,
         totalDirectIdentifiersRedacted: piiContext.emailsRedacted + piiContext.phonesRedacted,
+        credentialsRedacted: piiContext.credentialsRedacted,
       },
     };
   }
@@ -560,14 +588,29 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
       startLine: r.startLine,
       endLine: r.endLine,
       category: r.category,
-      exactQuote: r.exactQuote,
+      exactQuote: redactCredentials(r.exactQuote, piiContext).text,
       eventType: r.eventType,
       topic: r.topic,
-      value: r.value,
+      value: r.value ? redactCredentials(r.value, piiContext).text : null,
       eventDate: r.eventDate,
       actorName: r.actorName,
     };
   });
+
+  const sanitizedReceipts = allReceipts.map((r) => ({
+    ...r,
+    exactQuote: redactCredentials(r.exactQuote, piiContext).text,
+    value: r.value ? redactCredentials(r.value, piiContext).text : null,
+  }));
+  const sanitizedEvents = eventRows.map((ev) => ({
+    ...ev,
+    exact_quote: redactCredentials(ev.exact_quote, piiContext).text,
+    value: ev.value ? redactCredentials(ev.value, piiContext).text : null,
+  }));
+  const sanitizedRetrieval = includedHits.map((h) => ({
+    ...h,
+    exactSourceText: redactCredentials(h.exactSourceText || '', piiContext).text,
+  }));
 
   try {
     logLlmUsage(db, {
@@ -586,13 +629,13 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
 
   return {
     status: parsed.status,
-    answer: parsed.answer.trim(),
+    answer: redactCredentials(parsed.answer.trim(), piiContext).text,
     claims: validatedClaims,
-    reasoningNote: parsed.reasoning_note || null,
+    reasoningNote: parsed.reasoning_note ? redactCredentials(parsed.reasoning_note, piiContext).text : null,
     citations,
-    events: eventRows,
-    receipts: allReceipts,
-    retrieval: includedHits,
+    events: sanitizedEvents,
+    receipts: sanitizedReceipts,
+    retrieval: sanitizedRetrieval,
     metrics: {
       retrievedChunkCount,
       includedChunkCount,
@@ -603,6 +646,7 @@ Analyze the verified decision receipts above and synthesize a strictly grounded,
       emailsRedacted: piiContext.emailsRedacted,
       phonesRedacted: piiContext.phonesRedacted,
       totalDirectIdentifiersRedacted: piiContext.emailsRedacted + piiContext.phonesRedacted,
+      credentialsRedacted: piiContext.credentialsRedacted,
     },
   };
 }
